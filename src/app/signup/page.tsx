@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import Logo from '@/components/Logo'
 
 export default function SignupPage() {
+  const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -16,16 +17,28 @@ export default function SignupPage() {
     setLoading(true)
     setError('')
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email,
         password,
       })
-      if (error) {
-        setError(error.message)
+      if (signUpError) {
+        setError(signUpError.message)
         setLoading(false)
-      } else {
-        window.location.href = '/dashboard'
+        return
       }
+      if (data.user) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .upsert({
+            id: data.user.id,
+            full_name: fullName.trim(),
+            email: email.trim(),
+          })
+        if (profileError) {
+          console.error('Profile update error:', profileError.message)
+        }
+      }
+      window.location.href = '/dashboard'
     } catch (e) {
       setError('Something went wrong. Please try again.')
       setLoading(false)
@@ -58,6 +71,27 @@ export default function SignupPage() {
         }}>
           Create account
         </h1>
+
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ display: 'block', fontSize: '13px', color: '#555', marginBottom: '6px' }}>
+            Full name
+          </label>
+          <input
+            type="text"
+            value={fullName}
+            onChange={e => setFullName(e.target.value)}
+            placeholder="Jane Smith"
+            style={{
+              width: '100%',
+              padding: '10px 14px',
+              fontSize: '14px',
+              border: '1px solid #e0e0e0',
+              borderRadius: '8px',
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
 
         <div style={{ marginBottom: '16px' }}>
           <label style={{ display: 'block', fontSize: '13px', color: '#555', marginBottom: '6px' }}>
