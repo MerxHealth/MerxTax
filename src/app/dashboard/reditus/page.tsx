@@ -537,10 +537,10 @@ export default function ReditusPage() {
               </div>
               <select style={s.select} value={filterQuarter} onChange={e => setFilterQuarter(e.target.value)}>
                 <option value="ALL">All Quarters</option>
-                <option value="Q1">Q1 (Aprâ€“Jun)</option>
-                <option value="Q2">Q2 (Julâ€“Sep)</option>
-                <option value="Q3">Q3 (Octâ€“Dec)</option>
-                <option value="Q4">Q4 (Janâ€“Mar)</option>
+                <option value="Q1">Q1 (Apr-Jun)</option>
+                <option value="Q2">Q2 (Jul-Sep)</option>
+                <option value="Q3">Q3 (Oct-Dec)</option>
+                <option value="Q4">Q4 (Jan-Mar)</option>
               </select>
               <select style={s.select} value={filterTaxYear} onChange={e => setFilterTaxYear(e.target.value)}>
                 {['2026-27', '2025-26', '2024-25'].map(y => (
@@ -906,6 +906,7 @@ export default function ReditusPage() {
     </div>
   );
 }
+
 
 
 
