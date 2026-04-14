@@ -1,12 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+import { createClient } from '@/lib/supabase/client'
 
 const PLANS = [
   {
@@ -39,20 +34,25 @@ export default function PricingPage() {
 
   const handleSubscribe = async (priceId: string, planKey: string) => {
     setLoading(planKey)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      window.location.href = '/login?redirect=/pricing'
-      return
+    try {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        window.location.href = '/login?redirect=/pricing'
+        return
+      }
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priceId, userId: user.id, userEmail: user.email }),
+      })
+      const { url } = await res.json()
+      if (url) window.location.href = url
+    } catch (e) {
+      console.error('Checkout error:', e)
+    } finally {
+      setLoading(null)
     }
-
-    const res = await fetch('/api/stripe/checkout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ priceId, userId: user.id, userEmail: user.email }),
-    })
-    const { url } = await res.json()
-    if (url) window.location.href = url
-    setLoading(null)
   }
 
   return (
@@ -66,7 +66,6 @@ export default function PricingPage() {
           Accountants charge £300–£1,200/year. MerxTax is up to 85% cheaper — and never leaves your side.
         </p>
 
-        {/* Toggle */}
         <div style={{ display: 'inline-flex', background: '#F9FAFB', borderRadius: 8, padding: 4, marginBottom: 48 }}>
           {(['monthly', 'annual'] as const).map(b => (
             <button key={b} onClick={() => setBilling(b)} style={{
@@ -79,7 +78,6 @@ export default function PricingPage() {
           ))}
         </div>
 
-        {/* Cards */}
         <div style={{ display: 'flex', gap: 24, justifyContent: 'center', flexWrap: 'wrap' }}>
           {PLANS.map(plan => {
             const tier = billing === 'monthly' ? plan.monthly : plan.annual
@@ -90,9 +88,11 @@ export default function PricingPage() {
                 background: '#fff', position: 'relative',
               }}>
                 {plan.highlight && (
-                  <div style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)',
+                  <div style={{
+                    position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)',
                     background: '#01D98D', color: '#fff', fontSize: 11, fontWeight: 700,
-                    padding: '3px 12px', borderRadius: 20 }}>
+                    padding: '3px 12px', borderRadius: 20,
+                  }}>
                     MOST POPULAR
                   </div>
                 )}
@@ -110,7 +110,8 @@ export default function PricingPage() {
                   style={{
                     marginTop: 24, width: '100%', padding: '12px 0', borderRadius: 8, border: 'none',
                     background: plan.highlight ? '#01D98D' : '#0A2E1E', color: '#fff',
-                    fontWeight: 700, fontSize: 15, cursor: 'pointer',
+                    fontWeight: 700, fontSize: 15, cursor: loading === plan.key ? 'not-allowed' : 'pointer',
+                    opacity: loading === plan.key ? 0.7 : 1,
                   }}>
                   {loading === plan.key ? 'Redirecting...' : 'Get started'}
                 </button>
