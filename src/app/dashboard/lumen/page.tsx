@@ -45,7 +45,12 @@ export default function LumenPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    setUserName(user.email?.split('@')[0] || 'there');
+    const { data: profileData } = await supabase
+      .from('profiles')
+      .select('full_name')
+      .eq('id', user.id)
+      .single();
+    setUserName(profileData?.full_name || user.email?.split('@')[0] || 'there');
 
     // Load recent transactions for context
     const { data: txData } = await supabase
