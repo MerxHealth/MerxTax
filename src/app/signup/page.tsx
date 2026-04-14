@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 
 export default function SignupPage() {
@@ -10,100 +9,138 @@ export default function SignupPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
+
   const supabase = createClient()
 
   async function handleSignup() {
     setLoading(true)
     setError('')
-    const { error } = await supabase.auth.signUp({ email, password })
-    if (error) {
-      setError(error.message)
+    try {
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+      })
+      if (error) {
+        setError(error.message)
+        setLoading(false)
+      } else {
+        window.location.href = '/dashboard'
+      }
+    } catch (e) {
+      setError('Something went wrong. Please try again.')
       setLoading(false)
-    } else {
-      router.push('/dashboard')
     }
   }
 
   return (
     <div style={{
-      minHeight: '100vh', backgroundColor: '#ffffff',
-      fontFamily: 'DM Sans, sans-serif', padding: '48px'
+      minHeight: '100vh',
+      backgroundColor: '#ffffff',
+      fontFamily: 'DM Sans, sans-serif',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '24px',
     }}>
-      <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
-        <div style={{ marginBottom: '48px', marginLeft: '-12px' }}>
+      <div style={{ maxWidth: '400px', width: '100%' }}>
+
+        <div style={{ marginBottom: '48px', textAlign: 'center' }}>
           <Logo height={220} />
         </div>
-        <h1 style={{ color: '#1C1C1E', fontSize: '28px', fontWeight: 600, marginBottom: '8px' }}>
+
+        <h1 style={{
+          color: '#1C1C1E',
+          fontSize: '22px',
+          fontWeight: 600,
+          marginBottom: '24px',
+          textAlign: 'center',
+          fontFamily: 'Montserrat, sans-serif',
+        }}>
           Create account
         </h1>
-        <p style={{ color: '#6b7280', marginBottom: '40px', fontSize: '15px' }}>
-          Get started with MerxTax. Submit VAT returns via Making Tax Digital.
-        </p>
-        <div style={{
-          backgroundColor: '#f9f9f9', border: '1px solid #e5e7eb',
-          borderRadius: '12px', padding: '32px', maxWidth: '480px'
-        }}>
-          {error && (
-            <div style={{
-              backgroundColor: '#fef2f2', border: '1px solid #fecaca',
-              borderRadius: '8px', padding: '12px', marginBottom: '16px',
-              color: '#dc2626', fontSize: '14px'
-            }}>
-              {error}
-            </div>
-          )}
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ color: '#374151', fontSize: '13px', fontWeight: 500, display: 'block', marginBottom: '6px' }}>
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              style={{
-                width: '100%', padding: '10px 12px', backgroundColor: '#fff',
-                border: '1px solid #d1d5db', borderRadius: '8px', color: '#1C1C1E',
-                fontSize: '14px', outline: 'none', boxSizing: 'border-box'
-              }}
-            />
-          </div>
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ color: '#374151', fontSize: '13px', fontWeight: 500, display: 'block', marginBottom: '6px' }}>
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="password"
-              style={{
-                width: '100%', padding: '10px 12px', backgroundColor: '#fff',
-                border: '1px solid #d1d5db', borderRadius: '8px', color: '#1C1C1E',
-                fontSize: '14px', outline: 'none', boxSizing: 'border-box'
-              }}
-            />
-          </div>
-          <button
-            onClick={handleSignup}
-            disabled={loading}
+
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ display: 'block', fontSize: '13px', color: '#555', marginBottom: '6px' }}>
+            Email
+          </label>
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="you@example.com"
             style={{
-              width: '100%', padding: '11px', backgroundColor: '#01D98D',
-              color: '#000', border: 'none', borderRadius: '8px',
-              fontSize: '15px', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.7 : 1
+              width: '100%',
+              padding: '10px 14px',
+              fontSize: '14px',
+              border: '1px solid #e0e0e0',
+              borderRadius: '8px',
+              outline: 'none',
+              boxSizing: 'border-box',
             }}
-          >
-            {loading ? 'Creating account...' : 'Create account'}
-          </button>
-          <p style={{ textAlign: 'center', marginTop: '20px', color: '#6b7280', fontSize: '14px' }}>
-            Already have an account?{' '}
-            <a href="/login" style={{ color: '#01D98D', textDecoration: 'none', fontWeight: 500 }}>
-              Sign in
-            </a>
-          </p>
+          />
         </div>
+
+        <div style={{ marginBottom: '24px' }}>
+          <label style={{ display: 'block', fontSize: '13px', color: '#555', marginBottom: '6px' }}>
+            Password
+          </label>
+          <input
+            type="password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            placeholder="Minimum 8 characters"
+            style={{
+              width: '100%',
+              padding: '10px 14px',
+              fontSize: '14px',
+              border: '1px solid #e0e0e0',
+              borderRadius: '8px',
+              outline: 'none',
+              boxSizing: 'border-box',
+            }}
+          />
+        </div>
+
+        {error && (
+          <p style={{
+            color: '#dc2626',
+            fontSize: '13px',
+            marginBottom: '16px',
+            backgroundColor: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderRadius: '8px',
+            padding: '10px 14px',
+          }}>
+            {error}
+          </p>
+        )}
+
+        <button
+          onClick={handleSignup}
+          disabled={loading}
+          style={{
+            width: '100%',
+            backgroundColor: loading ? '#a3f0d4' : '#01D98D',
+            color: '#0A2E1E',
+            fontWeight: 700,
+            fontSize: '15px',
+            padding: '12px',
+            border: 'none',
+            borderRadius: '8px',
+            cursor: loading ? 'not-allowed' : 'pointer',
+            transition: 'background-color 0.2s',
+          }}
+        >
+          {loading ? 'Creating account…' : 'Create account'}
+        </button>
+
+        <p style={{ textAlign: 'center', fontSize: '13px', color: '#888', marginTop: '24px' }}>
+          Already have an account?{' '}
+          <a href="/login" style={{ color: '#01D98D', fontWeight: 600, textDecoration: 'none' }}>
+            Sign in
+          </a>
+        </p>
+
       </div>
     </div>
   )
