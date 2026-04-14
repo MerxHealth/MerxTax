@@ -57,14 +57,13 @@ export default function PricingPage() {
   }
 
   return (
-    <main style={{ minHeight: '100vh', background: '#fff', padding: '40px 20px', fontFamily: 'DM Sans, sans-serif' }}>
+    <main style={{ minHeight: '100vh', background: '#fff', padding: '48px', fontFamily: 'DM Sans, sans-serif' }}>
 
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginBottom: '32px' }}>
-        <Logo height={100} />
+      <div style={{ marginBottom: '48px', marginLeft: '-12px' }}>
+        <Logo height={220} />
       </div>
 
-      <div style={{ maxWidth: 960, margin: '0 auto', textAlign: 'center' }}>
-
+      <div style={{ maxWidth: 960, textAlign: 'center', margin: '0 auto' }}>
         <h1 style={{ fontSize: 36, fontWeight: 700, color: '#0A2E1E', marginBottom: 8 }}>
           Simple, transparent pricing
         </h1>
