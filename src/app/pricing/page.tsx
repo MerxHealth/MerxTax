@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import Logo from '@/components/Logo'
 
 const PLANS = [
   {
@@ -56,9 +57,11 @@ export default function PricingPage() {
   }
 
   return (
-    <main style={{ minHeight: '100vh', background: '#fff', padding: '60px 20px', fontFamily: 'DM Sans, sans-serif' }}>
+    <main style={{ minHeight: '100vh', background: '#fff', padding: '40px 20px', fontFamily: 'DM Sans, sans-serif' }}>
+      <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+        <Logo height={180} />
+      </div>
       <div style={{ maxWidth: 960, margin: '0 auto', textAlign: 'center' }}>
-
         <h1 style={{ fontSize: 36, fontWeight: 700, color: '#0A2E1E', marginBottom: 8 }}>
           Simple, transparent pricing
         </h1>
