@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState, useEffect } from 'react'
 import Logo from '@/components/Logo'
@@ -66,6 +66,12 @@ export default function DashboardPage() {
         </h1>
         <p style={{ color: '#6b7280', marginBottom: '40px', fontSize: '15px' }}>
           Welcome to MerxTax.
+        </p>
+
+        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '32px' }}>
+          <button onClick={() => { window.location.href = '/dashboard/reditus' }} style={{ padding: '14px 28px', backgroundColor: '#01D98D', color: '#0A2E1E', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>REDITUS · Income and Expenses →</button>
+        </div>
+        <p style={{ color: '#6b7280', marginBottom: '40px', fontSize: '15px', display: 'none' }}>hidden
         </p>
 
         <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', marginBottom: '32px' }}>
