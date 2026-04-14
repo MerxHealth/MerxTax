@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
@@ -63,12 +63,21 @@ function todayISO(): string {
   return new Date().toISOString().split('T')[0];
 }
 
+const emptyForm: ExtractedData = {
+  amount_gross: '',
+  date: todayISO(),
+  description: '',
+  category: '',
+  vat_rate: 'NOT_REGISTERED',
+  vat_amount: '0',
+  notes: '',
+  confidence: '',
+};
+
 export default function ImpensumPage() {
   const supabase = createClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const dropRef = useRef<HTMLDivElement>(null);
 
-  const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [reading, setReading] = useState(false);
   const [readError, setReadError] = useState('');
@@ -76,34 +85,18 @@ export default function ImpensumPage() {
   const [dragging, setDragging] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [saveError, setSaveError] = useState('');
-  const [transactionType, setTransactionType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE');
-
-  // Form state (populated after extraction)
-  const [form, setForm] = useState<ExtractedData>({
-    amount_gross: '',
-    date: todayISO(),
-    description: '',
-    category: '',
-    vat_rate: 'NOT_REGISTERED',
-    vat_amount: '0',
-    notes: '',
-    confidence: '',
-  });
+  const [txType, setTxType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE');
+  const [form, setForm] = useState<ExtractedData>(emptyForm);
 
   function handleFile(file: File) {
-    setImageFile(file);
     setExtracted(null);
     setSaveStatus('idle');
     setSaveError('');
     setReadError('');
+    setForm(emptyForm);
     const reader = new FileReader();
     reader.onload = (e) => setImagePreview(e.target?.result as string);
     reader.readAsDataURL(file);
-  }
-
-  function handleFileInput(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (file) handleFile(file);
   }
 
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -117,361 +110,214 @@ export default function ImpensumPage() {
     if (!imagePreview) return;
     setReading(true);
     setReadError('');
-
     try {
       const base64 = imagePreview.split(',')[1];
       const mediaType = imagePreview.split(';')[0].split(':')[1];
-
-      const response = await fetch('/api/impensum/read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ base64, mediaType }) })
-      const data = await response.json()
-      if (!data.success) throw new Error(data.error || 'Failed')
-      const parsed = data.data as ExtractedData;
-      const text = data.content?.[0]?.text ?? '';
-      const clean = text.replace(/```json|```/g, '').trim();
-      const parsed: ExtractedData = JSON.parse(clean);
-
-      setExtracted(parsed);
-      setForm(parsed);
-      setTransactionType(
-        ['TRADING_INCOME','PROPERTY_INCOME','OTHER_INCOME'].includes(parsed.category)
-          ? 'INCOME'
-          : 'EXPENSE'
-      );
-    } catch (err) {
+      const res = await fetch('/api/impensum/read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ base64, mediaType }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || 'Failed to read receipt');
+      const data = json.data as ExtractedData;
+      setExtracted(data);
+      setForm(data);
+      setTxType(['TRADING_INCOME','PROPERTY_INCOME','OTHER_INCOME'].includes(data.category) ? 'INCOME' : 'EXPENSE');
+    } catch (err: any) {
       setReadError('Could not read this receipt. Please check the image is clear and try again, or enter the details manually.');
     }
-
     setReading(false);
   }
 
   async function saveTransaction() {
     if (!form.amount_gross || !form.category || !form.description) {
-      setSaveError('Amount, category and description are required.');
-      return;
+      setSaveError('Amount, category and description are required.'); return;
     }
     setSaveStatus('saving');
     setSaveError('');
-
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { setSaveError('Not authenticated.'); setSaveStatus('error'); return; }
-
     const dateObj = new Date(form.date || todayISO());
     const gross = parseFloat(form.amount_gross);
     let net = gross;
     let vat = parseFloat(form.vat_amount || '0');
     if (form.vat_rate === 'STANDARD' && vat === 0) { net = gross / 1.2; vat = gross - net; }
     else if (form.vat_rate === 'REDUCED' && vat === 0) { net = gross / 1.05; vat = gross - net; }
-
-    const row = {
+    const { error } = await supabase.from('transactions').insert({
       user_id: user.id,
       date: form.date || todayISO(),
-      type: transactionType,
+      type: txType,
       amount_gross: gross,
       amount_net: parseFloat(net.toFixed(2)),
       vat_amount: parseFloat(vat.toFixed(2)),
       vat_rate: form.vat_rate,
       description: form.description,
       category: form.category,
-      income_source: transactionType === 'INCOME' ? 'TRADING' : null,
+      income_source: txType === 'INCOME' ? 'TRADING' : null,
       accounting_method: 'CASH',
       tax_year: getTaxYear(dateObj),
       quarter: getHMRCQuarter(dateObj),
       status: 'CONFIRMED',
       notes: form.notes || null,
-    };
-
-    const { error } = await supabase.from('transactions').insert(row);
+    });
     if (error) { setSaveError(error.message); setSaveStatus('error'); return; }
     setSaveStatus('saved');
   }
 
   function scanAnother() {
-    setImageFile(null);
     setImagePreview(null);
     setExtracted(null);
     setSaveStatus('idle');
     setSaveError('');
     setReadError('');
-    setForm({ amount_gross: '', date: todayISO(), description: '', category: '', vat_rate: 'NOT_REGISTERED', vat_amount: '0', notes: '', confidence: '' });
+    setForm(emptyForm);
     if (fileInputRef.current) fileInputRef.current.value = '';
   }
 
-  const inputStyle: React.CSSProperties = {
-    width: '100%', padding: '10px 14px', fontSize: 14,
-    border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff',
-    fontFamily: "'DM Sans', sans-serif", color: '#1C1C1E', boxSizing: 'border-box',
-  };
-
-  const labelStyle: React.CSSProperties = {
-    display: 'block', fontSize: 11, fontWeight: 600, color: '#6B7280',
-    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6,
-  };
+  const input: React.CSSProperties = { width: '100%', padding: '10px 14px', fontSize: 14, border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff', fontFamily: "'DM Sans', sans-serif", color: '#1C1C1E', boxSizing: 'border-box' };
+  const lbl: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 };
 
   return (
     <div style={{ minHeight: '100vh', background: '#FAFAFA', fontFamily: "'DM Sans', sans-serif", color: '#1C1C1E' }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Montserrat:wght@600;700;800&display=swap');
-        * { box-sizing: border-box; }
-        .upload-zone:hover { border-color: #01D98D !important; background: #F0FDF8 !important; }
-      `}</style>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Montserrat:wght@600;700;800&display=swap'); * { box-sizing: border-box; } .uz:hover { border-color: #01D98D !important; background: #F0FDF8 !important; }`}</style>
 
-      {/* Header */}
       <header style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button onClick={() => { window.location.href = '/dashboard'; }}
-            style={{ fontSize: 13, color: '#6B7280', cursor: 'pointer', background: 'none', border: 'none', fontFamily: "'DM Sans', sans-serif" }}>
-            Back to Dashboard
-          </button>
+          <button onClick={() => { window.location.href = '/dashboard'; }} style={{ fontSize: 13, color: '#6B7280', cursor: 'pointer', background: 'none', border: 'none', fontFamily: "'DM Sans', sans-serif" }}>Back to Dashboard</button>
           <div style={{ width: 1, height: 20, background: '#E5E7EB' }} />
-          <span style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E' }}>
-            IMPENSUM <span style={{ color: '#01D98D' }}>|</span> Receipt Capture
-          </span>
+          <span style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E' }}>IMPENSUM <span style={{ color: '#01D98D' }}>|</span> Receipt Capture</span>
         </div>
-        <button onClick={() => { window.location.href = '/dashboard/reditus'; }}
-          style={{ fontSize: 12, color: '#01D98D', fontWeight: 600, cursor: 'pointer', background: 'none', border: 'none', fontFamily: "'DM Sans', sans-serif" }}>
-          View all transactions
-        </button>
+        <button onClick={() => { window.location.href = '/dashboard/reditus'; }} style={{ fontSize: 12, color: '#01D98D', fontWeight: 600, cursor: 'pointer', background: 'none', border: 'none', fontFamily: "'DM Sans', sans-serif" }}>View all transactions</button>
       </header>
 
       <main style={{ maxWidth: 680, margin: '0 auto', padding: '32px 16px 80px' }}>
 
-        {/* Hero text */}
         {!imagePreview && (
-          <div style={{ textAlign: 'center', marginBottom: 32 }}>
-            <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 28, color: '#0A2E1E', marginBottom: 8 }}>
-              No more receipt piles.
+          <>
+            <div style={{ textAlign: 'center', marginBottom: 32 }}>
+              <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 28, color: '#0A2E1E', marginBottom: 8 }}>No more receipt piles.</div>
+              <div style={{ fontSize: 15, color: '#6B7280', lineHeight: 1.6 }}>Drop your receipt below. AI reads it. You confirm it. Done.</div>
             </div>
-            <div style={{ fontSize: 15, color: '#6B7280', lineHeight: 1.6 }}>
-              Drop your receipt below. AI reads it. You confirm it. Done.<br />
-              Every expense captured the moment it happens.
+
+            <div className="uz" onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={handleDrop} onClick={() => fileInputRef.current?.click()}
+              style={{ border: `2px dashed ${dragging ? '#01D98D' : '#D1D5DB'}`, borderRadius: 16, padding: '56px 32px', textAlign: 'center', cursor: 'pointer', background: dragging ? '#F0FDF8' : '#fff', transition: 'all 0.2s', marginBottom: 24 }}>
+              <div style={{ marginBottom: 16 }}>
+                <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <rect width="56" height="56" rx="14" fill="#F0FDF8"/>
+                  <path d="M28 36V24M28 24L23 29M28 24L33 29" stroke="#01D98D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M20 38H36" stroke="#01D98D" strokeWidth="2.5" strokeLinecap="round"/>
+                </svg>
+              </div>
+              <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 18, color: '#0A2E1E', marginBottom: 6 }}>Drop your receipt here</div>
+              <div style={{ fontSize: 13, color: '#9CA3AF', marginBottom: 16 }}>or tap to choose a photo from your device</div>
+              <div style={{ display: 'inline-block', padding: '10px 24px', background: '#01D98D', color: '#fff', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Montserrat', sans-serif" }}>Choose Photo</div>
+              <div style={{ fontSize: 11, color: '#D1D5DB', marginTop: 16 }}>JPG, PNG, PDF supported</div>
+              <input ref={fileInputRef} type="file" accept="image/*,.pdf" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} style={{ display: 'none' }} />
             </div>
-          </div>
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+              {[{ l: 'Web Upload', a: true }, { l: 'Email Forward', a: false }, { l: 'Mobile Camera', a: false }, { l: 'WhatsApp', a: false }, { l: 'Bank Feed', a: false }, { l: 'Voice', a: false }].map(p => (
+                <span key={p.l} style={{ padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: p.a ? '#E8F8F2' : '#F3F4F6', color: p.a ? '#01D98D' : '#9CA3AF', border: `1px solid ${p.a ? '#01D98D' : 'transparent'}` }}>
+                  {p.a ? 'Live: ' : 'Coming: '}{p.l}
+                </span>
+              ))}
+            </div>
+          </>
         )}
 
-        {/* Upload zone */}
-        {!imagePreview && (
-          <div
-            ref={dropRef}
-            className="upload-zone"
-            onDragOver={e => { e.preventDefault(); setDragging(true); }}
-            onDragLeave={() => setDragging(false)}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-            style={{
-              border: `2px dashed ${dragging ? '#01D98D' : '#D1D5DB'}`,
-              borderRadius: 16, padding: '56px 32px',
-              textAlign: 'center', cursor: 'pointer',
-              background: dragging ? '#F0FDF8' : '#fff',
-              transition: 'all 0.2s', marginBottom: 24,
-            }}
-          >
-            <div style={{ fontSize: 48, marginBottom: 16 }}>
-              <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect width="56" height="56" rx="14" fill="#F0FDF8"/>
-                <path d="M28 36V24M28 24L23 29M28 24L33 29" stroke="#01D98D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                <path d="M20 38H36" stroke="#01D98D" strokeWidth="2.5" strokeLinecap="round"/>
-                <rect x="16" y="16" width="24" height="28" rx="3" stroke="#0A2E1E" strokeWidth="1.5" strokeDasharray="3 2"/>
-              </svg>
-            </div>
-            <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 18, color: '#0A2E1E', marginBottom: 6 }}>
-              Drop your receipt here
-            </div>
-            <div style={{ fontSize: 13, color: '#9CA3AF', marginBottom: 16 }}>
-              or tap to choose a photo from your device
-            </div>
-            <div style={{ display: 'inline-block', padding: '10px 24px', background: '#01D98D', color: '#fff', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "'Montserrat', sans-serif" }}>
-              Choose Photo
-            </div>
-            <div style={{ fontSize: 11, color: '#D1D5DB', marginTop: 16 }}>
-              JPG, PNG, PDF supported
-            </div>
-            <input ref={fileInputRef} type="file" accept="image/*,.pdf" onChange={handleFileInput} style={{ display: 'none' }} />
-          </div>
-        )}
-
-        {/* Phase roadmap pills */}
-        {!imagePreview && (
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 40 }}>
-            {[
-              { label: 'Web Upload', active: true },
-              { label: 'Email Forward', active: false },
-              { label: 'Mobile Camera', active: false },
-              { label: 'WhatsApp', active: false },
-              { label: 'Bank Feed', active: false },
-              { label: 'Voice', active: false },
-            ].map(p => (
-              <span key={p.label} style={{ padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: p.active ? '#E8F8F2' : '#F3F4F6', color: p.active ? '#01D98D' : '#9CA3AF', border: `1px solid ${p.active ? '#01D98D' : 'transparent'}` }}>
-                {p.active ? 'Live: ' : 'Coming: '}{p.label}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {/* Image preview + read button */}
         {imagePreview && saveStatus !== 'saved' && (
           <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', padding: 24, marginBottom: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 16, color: '#0A2E1E' }}>
-                {extracted ? 'Receipt read' : 'Receipt ready'}
-              </div>
-              <button onClick={scanAnother}
-                style={{ fontSize: 12, color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                Use different photo
-              </button>
+              <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 16, color: '#0A2E1E' }}>{extracted ? 'Receipt read' : 'Receipt ready'}</div>
+              <button onClick={scanAnother} style={{ fontSize: 12, color: '#9CA3AF', background: 'none', border: 'none', cursor: 'pointer' }}>Use different photo</button>
             </div>
             <img src={imagePreview} alt="Receipt" style={{ width: '100%', maxHeight: 300, objectFit: 'contain', borderRadius: 10, background: '#F9FAFB', marginBottom: 16 }} />
-
             {!extracted && !reading && (
-              <button onClick={readReceipt}
-                style={{ width: '100%', padding: '14px', background: '#01D98D', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: "'Montserrat', sans-serif" }}>
-                Read Receipt with AI
-              </button>
+              <button onClick={readReceipt} style={{ width: '100%', padding: '14px', background: '#01D98D', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: "'Montserrat', sans-serif" }}>Read Receipt with AI</button>
             )}
-
             {reading && (
               <div style={{ textAlign: 'center', padding: '16px', background: '#F0FDF8', borderRadius: 12 }}>
                 <div style={{ fontWeight: 600, color: '#065F46', fontSize: 14, marginBottom: 4 }}>Reading your receipt...</div>
                 <div style={{ fontSize: 12, color: '#6B7280' }}>AI is extracting the details</div>
               </div>
             )}
-
-            {readError && (
-              <div style={{ background: '#FEF2F2', borderRadius: 10, padding: '12px 16px', color: '#991B1B', fontSize: 13, marginTop: 8 }}>
-                {readError}
-              </div>
-            )}
+            {readError && <div style={{ background: '#FEF2F2', borderRadius: 10, padding: '12px 16px', color: '#991B1B', fontSize: 13, marginTop: 8 }}>{readError}</div>}
           </div>
         )}
 
-        {/* Extracted + editable form */}
         {extracted && saveStatus !== 'saved' && (
           <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', padding: 24 }}>
-
-            {/* Confidence banner */}
             <div style={{ background: extracted.confidence === 'HIGH' ? '#F0FDF8' : extracted.confidence === 'MEDIUM' ? '#FFFBEB' : '#FEF2F2', border: `1px solid ${extracted.confidence === 'HIGH' ? '#BBF7E4' : extracted.confidence === 'MEDIUM' ? '#FDE68A' : '#FECACA'}`, borderRadius: 10, padding: '10px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: extracted.confidence === 'HIGH' ? '#01D98D' : extracted.confidence === 'MEDIUM' ? '#F59E0B' : '#EF4444', flexShrink: 0 }} />
               <div style={{ fontSize: 13, color: '#374151' }}>
-                {extracted.confidence === 'HIGH'
-                  ? 'Receipt read clearly. Check the details below and confirm.'
-                  : extracted.confidence === 'MEDIUM'
-                  ? 'Most details extracted. Please check the amounts carefully.'
-                  : 'Image quality is low. Please review all fields before saving.'}
+                {extracted.confidence === 'HIGH' ? 'Receipt read clearly. Check the details below and confirm.' : extracted.confidence === 'MEDIUM' ? 'Most details extracted. Please check the amounts carefully.' : 'Image quality is low. Please review all fields before saving.'}
               </div>
             </div>
 
-            {/* Type toggle */}
             <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>Transaction Type</label>
+              <label style={lbl}>Transaction Type</label>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => setTransactionType('EXPENSE')}
-                  style={{ flex: 1, padding: '10px', fontSize: 13, fontWeight: 700, borderRadius: 10, border: `2px solid ${transactionType === 'EXPENSE' ? '#EF4444' : '#E5E7EB'}`, background: transactionType === 'EXPENSE' ? '#FEF2F2' : '#fff', color: transactionType === 'EXPENSE' ? '#EF4444' : '#9CA3AF', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                  Expense
-                </button>
-                <button onClick={() => setTransactionType('INCOME')}
-                  style={{ flex: 1, padding: '10px', fontSize: 13, fontWeight: 700, borderRadius: 10, border: `2px solid ${transactionType === 'INCOME' ? '#01D98D' : '#E5E7EB'}`, background: transactionType === 'INCOME' ? '#E8F8F2' : '#fff', color: transactionType === 'INCOME' ? '#01D98D' : '#9CA3AF', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                  Income
-                </button>
+                <button onClick={() => setTxType('EXPENSE')} style={{ flex: 1, padding: '10px', fontSize: 13, fontWeight: 700, borderRadius: 10, border: `2px solid ${txType === 'EXPENSE' ? '#EF4444' : '#E5E7EB'}`, background: txType === 'EXPENSE' ? '#FEF2F2' : '#fff', color: txType === 'EXPENSE' ? '#EF4444' : '#9CA3AF', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Expense</button>
+                <button onClick={() => setTxType('INCOME')} style={{ flex: 1, padding: '10px', fontSize: 13, fontWeight: 700, borderRadius: 10, border: `2px solid ${txType === 'INCOME' ? '#01D98D' : '#E5E7EB'}`, background: txType === 'INCOME' ? '#E8F8F2' : '#fff', color: txType === 'INCOME' ? '#01D98D' : '#9CA3AF', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Income</button>
               </div>
             </div>
 
-            {/* Amount */}
             <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>Amount</label>
-              <input type="number" step="0.01" min="0" value={form.amount_gross}
-                onChange={e => setForm(f => ({ ...f, amount_gross: e.target.value }))}
-                style={{ ...inputStyle, fontSize: 24, fontWeight: 700, fontFamily: "'Montserrat', sans-serif" }} />
+              <label style={lbl}>Amount</label>
+              <input type="number" step="0.01" min="0" value={form.amount_gross} onChange={e => setForm(f => ({ ...f, amount_gross: e.target.value }))} style={{ ...input, fontSize: 24, fontWeight: 700, fontFamily: "'Montserrat', sans-serif" }} />
             </div>
 
-            {/* Date */}
             <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>Date</label>
-              <input type="date" value={form.date}
-                onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-                style={inputStyle} />
+              <label style={lbl}>Date</label>
+              <input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} style={input} />
             </div>
 
-            {/* Description */}
             <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>Merchant / Description</label>
-              <input type="text" value={form.description}
-                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                style={inputStyle} />
+              <label style={lbl}>Merchant / Description</label>
+              <input type="text" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} style={input} />
             </div>
 
-            {/* Category */}
             <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>HMRC Category</label>
-              <select value={form.category}
-                onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                style={inputStyle}>
+              <label style={lbl}>HMRC Category</label>
+              <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} style={input}>
                 <option value="">Select category</option>
-                <optgroup label="Income">
-                  {HMRC_CATEGORIES.filter(c => c.value.includes('INCOME')).map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-                </optgroup>
-                <optgroup label="Expenses">
-                  {HMRC_CATEGORIES.filter(c => !c.value.includes('INCOME')).map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-                </optgroup>
+                <optgroup label="Income">{HMRC_CATEGORIES.filter(c => c.value.includes('INCOME')).map(c => <option key={c.value} value={c.value}>{c.label}</option>)}</optgroup>
+                <optgroup label="Expenses">{HMRC_CATEGORIES.filter(c => !c.value.includes('INCOME')).map(c => <option key={c.value} value={c.value}>{c.label}</option>)}</optgroup>
               </select>
             </div>
 
-            {/* VAT */}
             <div style={{ marginBottom: 16 }}>
-              <label style={labelStyle}>VAT</label>
-              <select value={form.vat_rate}
-                onChange={e => setForm(f => ({ ...f, vat_rate: e.target.value }))}
-                style={inputStyle}>
+              <label style={lbl}>VAT</label>
+              <select value={form.vat_rate} onChange={e => setForm(f => ({ ...f, vat_rate: e.target.value }))} style={input}>
                 {VAT_RATES.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
               </select>
             </div>
 
-            {/* Notes */}
             <div style={{ marginBottom: 24 }}>
-              <label style={labelStyle}>Notes</label>
-              <input type="text" value={form.notes}
-                onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
-                placeholder="Any additional notes"
-                style={inputStyle} />
+              <label style={lbl}>Notes</label>
+              <input type="text" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Any additional notes" style={input} />
             </div>
 
-            {saveError && (
-              <div style={{ background: '#FEF2F2', borderRadius: 8, padding: '10px 14px', color: '#991B1B', fontSize: 13, marginBottom: 12 }}>
-                {saveError}
-              </div>
-            )}
+            {saveError && <div style={{ background: '#FEF2F2', borderRadius: 8, padding: '10px 14px', color: '#991B1B', fontSize: 13, marginBottom: 12 }}>{saveError}</div>}
 
-            <button onClick={saveTransaction} disabled={saveStatus === 'saving'}
-              style={{ width: '100%', padding: '14px', background: '#01D98D', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: saveStatus === 'saving' ? 'not-allowed' : 'pointer', fontFamily: "'Montserrat', sans-serif", opacity: saveStatus === 'saving' ? 0.7 : 1 }}>
+            <button onClick={saveTransaction} disabled={saveStatus === 'saving'} style={{ width: '100%', padding: '14px', background: '#01D98D', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: saveStatus === 'saving' ? 'not-allowed' : 'pointer', fontFamily: "'Montserrat', sans-serif", opacity: saveStatus === 'saving' ? 0.7 : 1 }}>
               {saveStatus === 'saving' ? 'Saving...' : 'Save to My Accounts'}
             </button>
           </div>
         )}
 
-        {/* Success state */}
         {saveStatus === 'saved' && (
           <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', padding: '48px 32px', textAlign: 'center' }}>
-            <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#E8F8F2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 28 }}>
-              <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                <path d="M8 16L13 21L24 11" stroke="#01D98D" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
+            <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#E8F8F2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+              <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M8 16L13 21L24 11" stroke="#01D98D" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </div>
-            <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 22, color: '#0A2E1E', marginBottom: 8 }}>
-              Saved. Your accounts are up to date.
-            </div>
-            <div style={{ fontSize: 14, color: '#6B7280', marginBottom: 8 }}>
-              {form.description} - {form.amount_gross ? `GBP ${parseFloat(form.amount_gross).toFixed(2)}` : ''} has been added to REDITUS.
-            </div>
-            <div style={{ fontSize: 13, color: '#9CA3AF', marginBottom: 32 }}>
-              You are running your business properly. That is what this is about.
-            </div>
+            <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 22, color: '#0A2E1E', marginBottom: 8 }}>Saved. Your accounts are up to date.</div>
+            <div style={{ fontSize: 14, color: '#6B7280', marginBottom: 8 }}>{form.description} has been added to REDITUS.</div>
+            <div style={{ fontSize: 13, color: '#9CA3AF', marginBottom: 32 }}>You are running your business properly. That is what this is about.</div>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-              <button onClick={scanAnother}
-                style={{ padding: '12px 28px', background: '#01D98D', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'Montserrat', sans-serif" }}>
-                Scan another receipt
-              </button>
-              <button onClick={() => { window.location.href = '/dashboard/reditus'; }}
-                style={{ padding: '12px 28px', background: '#F3F4F6', color: '#374151', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                View transactions
-              </button>
+              <button onClick={scanAnother} style={{ padding: '12px 28px', background: '#01D98D', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'Montserrat', sans-serif" }}>Scan another receipt</button>
+              <button onClick={() => { window.location.href = '/dashboard/reditus'; }} style={{ padding: '12px 28px', background: '#F3F4F6', color: '#374151', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>View transactions</button>
             </div>
           </div>
         )}
@@ -480,5 +326,3 @@ export default function ImpensumPage() {
     </div>
   );
 }
-
-
