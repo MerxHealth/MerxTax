@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
@@ -122,47 +122,10 @@ export default function ImpensumPage() {
       const base64 = imagePreview.split(',')[1];
       const mediaType = imagePreview.split(';')[0].split(':')[1];
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{
-            role: 'user',
-            content: [
-              {
-                type: 'image',
-                source: { type: 'base64', media_type: mediaType, data: base64 }
-              },
-              {
-                type: 'text',
-                text: `You are a UK bookkeeping assistant. Extract data from this receipt image and return ONLY a JSON object with no markdown, no preamble, no explanation.
-
-Return exactly this structure:
-{
-  "amount_gross": "the total amount as a decimal string e.g. 24.50",
-  "date": "date in YYYY-MM-DD format, use today if unclear",
-  "description": "merchant or supplier name, keep it short",
-  "category": "one of: GOODS_MATERIALS, TRAVEL, WAGES, RENT_RATES, REPAIRS, ADMIN, MARKETING, PROFESSIONAL_FEES, FINANCIAL_CHARGES, DEPRECIATION, OTHER_EXPENSE, TRADING_INCOME, PROPERTY_INCOME, OTHER_INCOME",
-  "vat_rate": "one of: NOT_REGISTERED, EXEMPT, ZERO, REDUCED, STANDARD - infer from receipt if possible",
-  "vat_amount": "VAT amount as decimal string or 0 if not shown",
-  "notes": "any other useful info from the receipt, or empty string",
-  "confidence": "HIGH, MEDIUM, or LOW based on image quality and data clarity"
-}
-
-Rules:
-- For category, reason from merchant type. Costa/Starbucks = MARKETING, Screwfix/B&Q = GOODS_MATERIALS or REPAIRS, Tesco/Sainsburys = GOODS_MATERIALS, fuel station = TRAVEL, restaurant with clients = MARKETING, office supplies = ADMIN
-- If the receipt is clearly a sales invoice to the business = TRADING_INCOME
-- Return null values as empty strings, never omit fields
-- Today's date is ${todayISO()}`
-              }
-            ]
-          }]
-        })
-      });
-
-      const data = await response.json();
+      const response = await fetch('/api/impensum/read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ base64, mediaType }) })
+      const data = await response.json()
+      if (!data.success) throw new Error(data.error || 'Failed')
+      const parsed: ExtractedData = data.data;
       const text = data.content?.[0]?.text ?? '';
       const clean = text.replace(/```json|```/g, '').trim();
       const parsed: ExtractedData = JSON.parse(clean);
@@ -517,3 +480,4 @@ Rules:
     </div>
   );
 }
+
