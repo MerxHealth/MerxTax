@@ -59,7 +59,7 @@ export default function PricingPage() {
   return (
     <main style={{ minHeight: '100vh', background: '#fff', padding: '48px 20px', fontFamily: 'DM Sans, sans-serif' }}>
 
-      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '48px' }}>
+      <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '48px', paddingLeft: '60px' }}>
         <Logo height={220} />
       </div>
 
