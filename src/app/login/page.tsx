@@ -14,16 +14,21 @@ export default function LoginPage() {
   const supabase = createClient()
 
   async function handleLogin() {
-    setLoading(true)
-    setError('')
+  setLoading(true)
+  setError('')
+  try {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
       setError(error.message)
       setLoading(false)
     } else {
-      router.push('/dashboard')
+      window.location.href = '/dashboard'
     }
+  } catch (e) {
+    setError('Something went wrong. Please try again.')
+    setLoading(false)
   }
+}
 
   return (
     <div style={{
