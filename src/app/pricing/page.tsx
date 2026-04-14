@@ -41,7 +41,7 @@ export default function PricingPage() {
         window.location.href = '/login?redirect=/pricing'
         return
       }
-      const res = await fetch('/api/stripe/checkout', {
+      const res = await fetch('/api/Stripe/Checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ priceId, userId: user.id, userEmail: user.email }),
