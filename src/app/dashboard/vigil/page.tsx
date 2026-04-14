@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
@@ -253,7 +253,7 @@ export default function VigilPage() {
 
             {/* Next action banner */}
             <div style={{ background: '#F0FDF8', border: '1px solid #BBF7E4', borderRadius: 12, padding: '16px 20px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 16 }}>
-              <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#01D98D', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 18 }}>></div>
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#01D98D', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 18 }}>&gt;</div>
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#065F46', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>Your next step</div>
                 <div style={{ fontSize: 14, color: '#0A2E1E', fontWeight: 500 }}>{nextAction}</div>
@@ -538,3 +538,4 @@ export default function VigilPage() {
     </div>
   );
 }
+
