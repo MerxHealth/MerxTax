@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
@@ -155,19 +155,14 @@ USER FINANCIAL CONTEXT (live data):
   async function incrementUsage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    await supabase.rpc('increment_usage', {
-      p_user_id: user.id,
-      p_feature: 'LUMEN',
-      p_month: currentMonth,
-    }).catch(() => {
-      // Fallback: upsert manually
-      supabase.from('usage').upsert({
-        user_id: user.id,
-        feature: 'LUMEN',
-        month: currentMonth,
-        count: (usage?.used || 0) + 1,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id,feature,month' });
+    const currentUsed = usage?.used || 0;
+    await supabase.from('usage').upsert({
+      user_id: user.id,
+      feature: 'LUMEN',
+      month: currentMonth,
+      count: currentUsed + 1,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id,feature,month' });
     });
     setUsage(u => u ? { ...u, used: u.used + 1 } : u);
   }
@@ -383,3 +378,4 @@ USER FINANCIAL CONTEXT (live data):
     </div>
   );
 }
+
