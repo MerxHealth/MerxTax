@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation'
 import Logo from '@/components/Logo'
 
 export default function LoginPage() {
@@ -10,25 +9,24 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const router = useRouter()
   const supabase = createClient()
 
   async function handleLogin() {
-  setLoading(true)
-  setError('')
-  try {
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) {
-      setError(error.message)
+    setLoading(true)
+    setError('')
+    try {
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) {
+        setError(error.message)
+        setLoading(false)
+      } else {
+        window.location.href = '/dashboard'
+      }
+    } catch (e) {
+      setError('Something went wrong. Please try again.')
       setLoading(false)
-    } else {
-      window.location.href = '/dashboard'
     }
-  } catch (e) {
-    setError('Something went wrong. Please try again.')
-    setLoading(false)
   }
-}
 
   return (
     <div style={{
