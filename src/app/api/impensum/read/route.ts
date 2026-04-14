@@ -13,9 +13,10 @@ export async function POST(request: NextRequest) {
     const json = await res.json();
     if (!res.ok) return NextResponse.json({ error: json.error?.message || 'API error' }, { status: 500 });
     const text = json.content?.[0]?.text || '';
-    const parsed = JSON.parse(text.replace(/\\\json|\\\/g, '').trim());
+    const parsed = JSON.parse(text.replace(/`json|`/g, '').trim());
     return NextResponse.json({ success: true, data: parsed });
   } catch (err: any) {
     return NextResponse.json({ error: err.message || 'Failed' }, { status: 500 });
   }
 }
+

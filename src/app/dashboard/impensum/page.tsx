@@ -125,7 +125,7 @@ export default function ImpensumPage() {
       const response = await fetch('/api/impensum/read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ base64, mediaType }) })
       const data = await response.json()
       if (!data.success) throw new Error(data.error || 'Failed')
-      const parsed: ExtractedData = data.data;
+      const parsed = data.data as ExtractedData;
       const text = data.content?.[0]?.text ?? '';
       const clean = text.replace(/```json|```/g, '').trim();
       const parsed: ExtractedData = JSON.parse(clean);
@@ -480,4 +480,5 @@ export default function ImpensumPage() {
     </div>
   );
 }
+
 
