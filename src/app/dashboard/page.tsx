@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import { useState, useEffect } from 'react'
 import Logo from '@/components/Logo'
@@ -69,13 +69,12 @@ export default function DashboardPage() {
         </p>
 
         <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '32px' }}>
-          <button onClick={() => { window.location.href = '/dashboard/reditus' }} style={{ padding: '14px 28px', backgroundColor: '#01D98D', color: '#0A2E1E', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>REDITUS · Income and Expenses →</button>
-          <button onClick={() => { window.location.href = '/dashboard/vigil' }} style={{ padding: '14px 28px', backgroundColor: '#0A2E1E', color: '#fff', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>VIGIL · Deadlines and Penalties →</button>
-          <button onClick={() => { window.location.href = '/dashboard/impensum' }} style={{ padding: '14px 28px', backgroundColor: '#1C1C1E', color: '#fff', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>IMPENSUM · Receipt Capture →</button>
-          <button onClick={() => { window.location.href = '/dashboard/lumen' }} style={{ padding: '14px 28px', backgroundColor: '#01D98D', color: '#0A2E1E', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>LUMEN · AI Accountant →</button>
+          <button onClick={() => { window.location.href = '/dashboard/reditus' }} style={{ padding: '14px 28px', backgroundColor: '#01D98D', color: '#0A2E1E', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>REDITUS - Income and Expenses &rarr;</button>
+          <button onClick={() => { window.location.href = '/dashboard/vigil' }} style={{ padding: '14px 28px', backgroundColor: '#0A2E1E', color: '#fff', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>VIGIL - Deadlines and Penalties &rarr;</button>
+          <button onClick={() => { window.location.href = '/dashboard/impensum' }} style={{ padding: '14px 28px', backgroundColor: '#1C1C1E', color: '#fff', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>IMPENSUM - Receipt Capture &rarr;</button>
+          <button onClick={() => { window.location.href = '/dashboard/lumen' }} style={{ padding: '14px 28px', backgroundColor: '#01D98D', color: '#0A2E1E', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>LUMEN - AI Accountant &rarr;</button>
+          <button onClick={() => { window.location.href = '/dashboard/profile' }} style={{ padding: '14px 28px', backgroundColor: '#fff', color: '#0A2E1E', border: '2px solid #0A2E1E', borderRadius: '10px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', fontFamily: 'DM Sans, sans-serif' }}>My Profile &rarr;</button>
         </div>
-        <p style={{ color: '#6b7280', marginBottom: '40px', fontSize: '15px', display: 'none' }}>hidden
-        </p>
 
         <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', marginBottom: '32px' }}>
           <div style={{
@@ -200,7 +199,3 @@ export default function DashboardPage() {
     </div>
   )
 }
-
-
-
-
