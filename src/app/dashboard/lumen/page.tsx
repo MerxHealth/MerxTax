@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
@@ -163,7 +163,6 @@ USER FINANCIAL CONTEXT (live data):
       count: currentUsed + 1,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'user_id,feature,month' });
-    });
     setUsage(u => u ? { ...u, used: u.used + 1 } : u);
   }
 
@@ -378,5 +377,3 @@ USER FINANCIAL CONTEXT (live data):
     </div>
   );
 }
-
-
