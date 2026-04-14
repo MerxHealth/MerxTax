@@ -566,7 +566,7 @@ export default function ReditusPage() {
                 <div style={s.emptyState}>
                   <div style={{ fontSize: 32, marginBottom: 8 }}>ðŸ“‹</div>
                   <div style={{ fontWeight: 600, color: '#374151', marginBottom: 4 }}>No transactions yet</div>
-                  <div>Tap âž• below to add your first income or expense</div>
+                  <div>Tap + below to add your first income or expense</div>
                 </div>
               )}
               {!loading && filtered.map(t => (
@@ -906,4 +906,6 @@ export default function ReditusPage() {
     </div>
   );
 }
+
+
 
