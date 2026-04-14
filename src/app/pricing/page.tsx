@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 
 const supabase = createClient(
@@ -37,12 +36,14 @@ const PLANS = [
 export default function PricingPage() {
   const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly')
   const [loading, setLoading] = useState<string | null>(null)
-  const router = useRouter()
 
   const handleSubscribe = async (priceId: string, planKey: string) => {
     setLoading(planKey)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { router.push('/login'); return }
+    if (!user) {
+      window.location.href = '/login?redirect=/pricing'
+      return
+    }
 
     const res = await fetch('/api/stripe/checkout', {
       method: 'POST',
