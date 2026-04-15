@@ -397,7 +397,9 @@ export default function ImpensumPage() {
         setMileageFrom(json.fromName || 'Your location');
         const total = mileageReturn ? json.miles * 2 : json.miles;
         const allowance = (total * HMRC_MILEAGE_RATE).toFixed(2);
-        speak(`${mileageTo} is about ${json.miles} miles from you. ${mileageReturn ? `Return trip is ${total} miles — that's £${allowance} at HMRC rates.` : `That's £${allowance} at HMRC rates.`}`);
+        const isLikelyDesktop = !('ontouchstart' in window);
+        const accuracyNote = isLikelyDesktop ? ' I am using your approximate desktop location — if that does not look right, enter your exact starting point in the From field.' : '';
+        speak(`${mileageTo} is about ${json.miles} miles from you. ${mileageReturn ? `Return trip is ${total} miles — that's £${allowance} at HMRC rates.` : `That's £${allowance} at HMRC rates.`}${accuracyNote}`);
       } else {
         setGpsError("Couldn't calculate that route. Enter miles manually.");
       }
