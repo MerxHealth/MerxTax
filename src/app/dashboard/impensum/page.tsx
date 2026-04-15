@@ -364,13 +364,29 @@ export default function ImpensumPage() {
   async function calculateGPSRoute() {
     if (!mileageTo.trim()) { setGpsError('Please enter a destination.'); return; }
     setGpsLoading(true); setGpsError('');
-    const lat = localStorage.getItem('impensum_lat');
-    const lng = localStorage.getItem('impensum_lng');
-    if (!lat || !lng) {
-      setGpsError('Location not available. Enter miles manually.');
-      setGpsLoading(false); return;
-    }
+
+    const getCoords = (): Promise<{ lat: string; lng: string }> => {
+      return new Promise((resolve, reject) => {
+        const storedLat = localStorage.getItem('impensum_lat');
+        const storedLng = localStorage.getItem('impensum_lng');
+        if (storedLat && storedLng) { resolve({ lat: storedLat, lng: storedLng }); return; }
+        if (!navigator.geolocation) { reject(new Error('no_gps')); return; }
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude.toString();
+            const lng = pos.coords.longitude.toString();
+            localStorage.setItem('impensum_lat', lat);
+            localStorage.setItem('impensum_lng', lng);
+            resolve({ lat, lng });
+          },
+          () => reject(new Error('denied')),
+          { timeout: 10000, enableHighAccuracy: true }
+        );
+      });
+    };
+
     try {
+      const { lat, lng } = await getCoords();
       const res = await fetch('/api/impensum/distance', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ from: `${lat},${lng}`, to: mileageTo }),
@@ -379,12 +395,18 @@ export default function ImpensumPage() {
       if (json.miles) {
         setMileageMiles(json.miles.toString());
         setMileageFrom(json.fromName || 'Your location');
-        speak(`${mileageTo} is about ${json.miles} miles from you. ${mileageReturn ? `Return trip would be ${json.miles * 2} miles — that's £${(json.miles * 2 * HMRC_MILEAGE_RATE).toFixed(2)} at HMRC rates.` : `That's £${(json.miles * HMRC_MILEAGE_RATE).toFixed(2)} at HMRC rates.`}`);
+        const total = mileageReturn ? json.miles * 2 : json.miles;
+        const allowance = (total * HMRC_MILEAGE_RATE).toFixed(2);
+        speak(`${mileageTo} is about ${json.miles} miles from you. ${mileageReturn ? `Return trip is ${total} miles — that's £${allowance} at HMRC rates.` : `That's £${allowance} at HMRC rates.`}`);
       } else {
         setGpsError("Couldn't calculate that route. Enter miles manually.");
       }
-    } catch {
-      setGpsError("Route calculation failed. Enter miles manually.");
+    } catch (err: any) {
+      if (err.message === 'denied') {
+        setGpsError('Location access denied. Please allow location in your browser settings, or enter miles manually.');
+      } else {
+        setGpsError("Location not available. Enter miles manually.");
+      }
     }
     setGpsLoading(false);
   }
