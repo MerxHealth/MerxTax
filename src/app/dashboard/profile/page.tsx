@@ -42,7 +42,7 @@ export default function ProfilePage() {
         .eq('user_id', user.id)
         .single();
 
-      setBusinessName(biz?.name || '');
+      setBusinessName((!biz?.name || biz.name.includes('@')) ? '' : biz.name);
       setLoading(false);
     }
     load();
