@@ -173,7 +173,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div style={{ flex: 1, padding: '24px 28px', overflowY: 'auto' }}>
+          <div style={{ flex: 1, padding: '12px 28px 24px', overflowY: 'auto' }}>
 
             {!loading && (
               <div style={{ background: '#F0FDF8', border: '1px solid #BBF7E4', borderRadius: 10, padding: '11px 18px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
