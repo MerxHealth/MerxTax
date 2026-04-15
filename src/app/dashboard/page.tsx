@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
@@ -143,7 +143,28 @@ export default function DashboardPage() {
   return (
     <ThemeProvider>
       <div style={{ display: 'flex', minHeight: '100vh', background: '#F8FAFB', fontFamily: "'DM Sans', sans-serif" }}>
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Montserrat:wght@600;700;800&display=swap'); * { box-sizing: border-box; }`}</style>
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Montserrat:wght@600;700;800&display=swap');
+          * { box-sizing: border-box; }
+
+          .dash-topbar { display: flex; }
+          .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
+          .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-bottom: 20px; }
+          .quarter-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 18px; }
+          .quickadd-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+          .dash-content { flex: 1; padding: 12px 28px 24px; overflow-y: auto; }
+
+          @media (max-width: 767px) {
+            .dash-topbar { display: none !important; }
+            .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+            .main-grid { grid-template-columns: 1fr; }
+            .quarter-grid { grid-template-columns: repeat(2, 1fr); }
+            .quickadd-grid { grid-template-columns: repeat(3, 1fr); }
+            .dash-content { padding: 12px 14px 24px; }
+            .hmrc-banner { flex-direction: column; gap: 12px; align-items: flex-start !important; }
+            .hmrc-banner a { width: 100%; text-align: center; }
+          }
+        `}</style>
 
         <Sidebar
           active="Dashboard"
@@ -156,8 +177,10 @@ export default function DashboardPage() {
           badge={draftTx > 0 ? { REDITUS: draftTx } : {}}
         />
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div style={{ background: '#fff', borderBottom: '0.5px solid #E5E7EB', padding: '0 28px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+
+          {/* Top bar — desktop only */}
+          <div className="dash-topbar" style={{ background: '#fff', borderBottom: '0.5px solid #E5E7EB', padding: '0 28px', height: 64, alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
               <Logo height={160} />
               <div style={{ width: 1, height: 24, background: '#E5E7EB' }} />
@@ -173,8 +196,9 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div style={{ flex: 1, padding: '12px 28px 24px', overflowY: 'auto' }}>
+          <div className="dash-content">
 
+            {/* Next action banner */}
             {!loading && (
               <div style={{ background: '#F0FDF8', border: '1px solid #BBF7E4', borderRadius: 10, padding: '11px 18px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#01D98D', flexShrink: 0 }} />
@@ -182,7 +206,8 @@ export default function DashboardPage() {
               </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 20 }}>
+            {/* Stat cards */}
+            <div className="stat-grid">
               {[
                 { label: 'Net profit', value: fmt(netProfit), sub: `${currentTaxYear} tax year`, color: '#0A2E1E' },
                 { label: 'Tax to set aside', value: fmt(taxDue), sub: 'Est. January bill', color: '#D97706' },
@@ -197,10 +222,11 @@ export default function DashboardPage() {
               ))}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 20 }}>
+            {/* Quarter + Compliance */}
+            <div className="main-grid">
               <div style={{ background: '#fff', border: '0.5px solid #E5E7EB', borderRadius: 12, padding: '18px 20px' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#0A2E1E', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 14 }}>Quarter status — {currentTaxYear}</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 18 }}>
+                <div className="quarter-grid">
                   {(['Q1','Q2','Q3','Q4'] as const).map(q => {
                     const color = qColour(q);
                     const label = qLabel(q);
@@ -216,7 +242,7 @@ export default function DashboardPage() {
                   })}
                 </div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#0A2E1E', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>Quick add</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                <div className="quickadd-grid">
                   {[
                     { name: 'Upload receipt', desc: 'Scan with AI' },
                     { name: 'Voice entry', desc: 'Speak to log' },
@@ -248,8 +274,9 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {/* Connect HMRC */}
             {!connected && !loading && (
-              <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '18px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div className="hmrc-banner" style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '18px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <div style={{ fontWeight: 700, fontSize: 14, color: '#0A2E1E', marginBottom: 4 }}>Connect HMRC</div>
                   <div style={{ fontSize: 13, color: '#6B7280' }}>Link your HMRC account to enable MTD submissions and real-time compliance checking.</div>
@@ -259,6 +286,7 @@ export default function DashboardPage() {
                 </a>
               </div>
             )}
+
           </div>
         </div>
       </div>
