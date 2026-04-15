@@ -172,12 +172,12 @@ export default function AdminSettingsPage() {
                     </div>
 
                     <input
-                      type="number"
+                      type={isUnlimited ? 'text' : 'number'}
                       min="1"
-                      value={isUnlimited ? '∞' : val}
+                      value={isUnlimited ? 'Unlimited' : val}
                       disabled={isUnlimited}
                       onChange={e => setEdited(prev => ({ ...prev, [key]: e.target.value }))}
-                      style={{ width: '100%', padding: '10px 12px', fontSize: 20, fontWeight: 700, fontFamily: "'Montserrat', sans-serif", border: '1px solid #E5E7EB', borderRadius: 8, background: isUnlimited ? '#E8F8F2' : '#fff', color: isUnlimited ? '#01D98D' : '#0A2E1E', textAlign: 'center', marginBottom: 10 }}
+                      style={{ width: '100%', padding: '10px 12px', fontSize: isUnlimited ? 16 : 20, fontWeight: 700, fontFamily: "'Montserrat', sans-serif", border: '1px solid #E5E7EB', borderRadius: 8, background: isUnlimited ? '#E8F8F2' : '#fff', color: isUnlimited ? '#01D98D' : '#0A2E1E', textAlign: 'center', marginBottom: 10 }}
                     />
 
                     <div style={{ fontSize: 11, color: '#9CA3AF', textAlign: 'center', marginBottom: 10 }}>
