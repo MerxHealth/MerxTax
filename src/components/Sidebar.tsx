@@ -1,7 +1,7 @@
 'use client';
 
 import { useTheme, getSidebarStyles } from '@/lib/ThemeContext';
-import Logo from '@/components/Logo';
+
 
 type SidebarProps = {
   active: string;
@@ -40,11 +40,6 @@ export default function Sidebar({ active, userName = 'You', plan = 'SOLO', netPr
 
   return (
     <div style={{ width: 220, flexShrink: 0, display: 'flex', flexDirection: 'column', background: s.background, minHeight: '100vh', position: 'sticky', top: 0, height: '100vh', overflow: 'hidden' }}>
-
-      {/* Logo */}
-      <div style={{ padding: '16px 20px 14px', borderBottom: `1px solid ${s.divider}` }}>
-        <Logo height={36} />
-      </div>
 
       {/* Balance panel */}
       <div style={{ padding: '14px 16px', borderBottom: `1px solid ${s.divider}` }}>

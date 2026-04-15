@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { ThemeProvider } from '@/lib/ThemeContext';
 import Sidebar from '@/components/Sidebar';
+import Logo from '@/components/Logo';
 
 function getTaxYear(date: Date): string {
   const y = date.getFullYear(), m = date.getMonth() + 1, d = date.getDate();
@@ -157,8 +158,12 @@ export default function DashboardPage() {
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ background: '#fff', borderBottom: '0.5px solid #E5E7EB', padding: '0 28px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-            <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 16, color: '#0A2E1E' }}>
-              {loading ? '' : `${getGreeting()}${userName ? `, ${userName}` : ''}.`}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+              <Logo height={48} />
+              <div style={{ width: 1, height: 24, background: '#E5E7EB' }} />
+              <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E' }}>
+                {loading ? '' : `${getGreeting()}${userName ? `, ${userName}` : ''}.`}
+              </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <span style={{ fontSize: 12, color: '#9CA3AF' }}>{today.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
