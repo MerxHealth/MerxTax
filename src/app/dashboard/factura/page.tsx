@@ -5,29 +5,9 @@ import { createClient } from '@/lib/supabase/client';
 import { ThemeProvider } from '@/lib/ThemeContext';
 import Sidebar from '@/components/Sidebar';
 
-type InvoiceItem = {
-  id?: string;
-  description: string;
-  quantity: number;
-  unit_price: number;
-  total: number;
-};
-
-type Invoice = {
-  id: string;
-  invoice_number: string;
-  client_name: string;
-  client_email: string;
-  client_address: string;
-  issue_date: string;
-  due_date: string;
-  subtotal: number;
-  tax_amount: number;
-  total: number;
-  status: string;
-  notes: string;
-  items?: InvoiceItem[];
-};
+type InvoiceItem = { id?: string; description: string; quantity: number; unit_price: number; total: number; };
+type Invoice = { id: string; invoice_number: string; client_name: string; client_email: string; client_address: string; issue_date: string; due_date: string; subtotal: number; tax_amount: number; total: number; status: string; notes: string; items?: InvoiceItem[]; };
+type ClientTemplate = { id: string; name: string; email: string; address: string; };
 
 function fmt(n: number) {
   return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', minimumFractionDigits: 2 }).format(n);
@@ -38,10 +18,14 @@ function statusColor(s: string) {
   if (s === 'sent') return { bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' };
   if (s === 'overdue') return { bg: '#FEF2F2', color: '#991B1B', border: '#FECACA' };
   if (s === 'cancelled') return { bg: '#F3F4F6', color: '#6B7280', border: '#E5E7EB' };
-  return { bg: '#FFFBEB', color: '#92400E', border: '#FDE68A' }; // draft
+  return { bg: '#FFFBEB', color: '#92400E', border: '#FDE68A' };
 }
 
-function printInvoice(invoice: Invoice, businessName: string) {
+function printInvoice(invoice: Invoice, businessName: string, logoUrl: string, initials: string) {
+  const logoHtml = logoUrl
+    ? `<img src="${logoUrl}" style="max-height:60px;max-width:160px;object-fit:contain;" alt="logo" />`
+    : `<div style="width:52px;height:52px;border-radius:10px;background:#01D98D;display:flex;align-items:center;justify-content:center;font-family:'Helvetica Neue',Arial,sans-serif;font-weight:800;font-size:18px;color:#0A2E1E;">${initials}</div>`;
+
   const itemRows = (invoice.items || []).map(i => `
     <tr>
       <td style="padding:10px 12px;border-bottom:1px solid #E5E7EB;">${i.description}</td>
@@ -54,8 +38,6 @@ function printInvoice(invoice: Invoice, businessName: string) {
   <style>
     body{font-family:'Helvetica Neue',Arial,sans-serif;color:#1C1C1E;margin:0;padding:40px;}
     .header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:40px;}
-    .logo{font-size:22px;font-weight:800;color:#0A2E1E;letter-spacing:-0.5px;}
-    .logo span{color:#01D98D;}
     .inv-number{font-size:13px;color:#6B7280;text-align:right;}
     .inv-number strong{display:block;font-size:20px;color:#0A2E1E;margin-bottom:2px;}
     .parties{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-bottom:36px;}
@@ -74,18 +56,15 @@ function printInvoice(invoice: Invoice, businessName: string) {
   </style></head><body>
   <div class="header">
     <div>
-      <div class="logo">mer<span>X</span>tax</div>
-      <div style="font-size:13px;color:#6B7280;margin-top:4px;">${businessName}</div>
+      ${logoHtml}
+      <div style="font-size:13px;color:#6B7280;margin-top:8px;">${businessName}</div>
     </div>
-    <div class="inv-number">
-      <strong>${invoice.invoice_number}</strong>
-      INVOICE
-    </div>
+    <div class="inv-number"><strong>${invoice.invoice_number}</strong>INVOICE</div>
   </div>
   <div class="parties">
     <div>
       <div class="label">Bill to</div>
-      <div class="value"><strong>${invoice.client_name}</strong><br>${invoice.client_email || ''}<br>${(invoice.client_address || '').replace(/\n/g,'<br>')}</div>
+      <div class="value"><strong>${invoice.client_name}</strong><br>${invoice.client_email || ''}<br>${(invoice.client_address || '').replace(/\n/g, '<br>')}</div>
     </div>
     <div>
       <div class="label">Details</div>
@@ -115,14 +94,21 @@ export default function FacturaPage() {
   const [view, setView] = useState<'list' | 'create' | 'detail'>('list');
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [selected, setSelected] = useState<Invoice | null>(null);
+  const [templates, setTemplates] = useState<ClientTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [userId, setUserId] = useState('');
   const [businessName, setBusinessName] = useState('');
+  const [logoUrl, setLogoUrl] = useState('');
   const [userName, setUserName] = useState('');
   const [plan, setPlan] = useState('SOLO');
   const [netProfit, setNetProfit] = useState(0);
   const [msg, setMsg] = useState('');
+
+  // Save-as-template dialog
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [pendingSaveAsDraft, setPendingSaveAsDraft] = useState(false);
+  const [templateName, setTemplateName] = useState('');
 
   // Form state
   const [clientName, setClientName] = useState('');
@@ -146,9 +132,10 @@ export default function FacturaPage() {
     if (!user) { window.location.href = '/login'; return; }
     setUserId(user.id);
 
-    const { data: profile } = await supabase.from('profiles').select('full_name, plan').eq('id', user.id).single();
+    const { data: profile } = await supabase.from('profiles').select('full_name, plan, logo_url').eq('id', user.id).single();
     setUserName(profile?.full_name || '');
     setPlan(profile?.plan?.toUpperCase() || 'SOLO');
+    setLogoUrl(profile?.logo_url || '');
 
     const { data: biz } = await supabase.from('businesses').select('name').eq('user_id', user.id).single();
     setBusinessName(biz?.name || '');
@@ -156,7 +143,9 @@ export default function FacturaPage() {
     const { data: inv } = await supabase.from('invoices').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
     setInvoices(inv || []);
 
-    // Net profit for sidebar
+    const { data: tmpl } = await supabase.from('client_templates').select('*').eq('user_id', user.id).order('name');
+    setTemplates(tmpl || []);
+
     const today = new Date();
     const y = today.getFullYear(), m = today.getMonth() + 1, d = today.getDate();
     const after = m > 4 || (m === 4 && d >= 6);
@@ -165,7 +154,6 @@ export default function FacturaPage() {
     const inc = (txData || []).filter((t: any) => t.type === 'INCOME').reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
     const exp = (txData || []).filter((t: any) => t.type === 'EXPENSE').reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
     setNetProfit(inc - exp);
-
     setLoading(false);
   }, []);
 
@@ -188,10 +176,30 @@ export default function FacturaPage() {
     return `INV-${String(Math.max(...nums) + 1).padStart(3, '0')}`;
   };
 
-  const handleSave = async (asDraft: boolean) => {
+  const initials = businessName.trim()
+    ? businessName.trim().split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
+    : userName.trim().split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'MT';
+
+  // Called when user clicks Save — shows template dialog first
+  const handleSaveClick = (asDraft: boolean) => {
     if (!clientName.trim()) { setMsg('Client name is required.'); return; }
     if (items.some(i => !i.description.trim())) { setMsg('All line items need a description.'); return; }
+    setPendingSaveAsDraft(asDraft);
+    setTemplateName(clientName.trim());
+    setShowTemplateDialog(true);
+  };
+
+  // Called after template dialog decision
+  const handleSave = async (saveTemplate: boolean) => {
+    setShowTemplateDialog(false);
     setSaving(true); setMsg('');
+
+    if (saveTemplate && clientName.trim()) {
+      const exists = templates.find(t => t.name.toLowerCase() === clientName.trim().toLowerCase());
+      if (!exists) {
+        await supabase.from('client_templates').insert({ user_id: userId, name: clientName.trim(), email: clientEmail.trim(), address: clientAddress.trim() });
+      }
+    }
 
     const invNumber = nextInvoiceNumber();
     const { data: inv, error } = await supabase.from('invoices').insert({
@@ -205,7 +213,7 @@ export default function FacturaPage() {
       subtotal,
       tax_amount: taxAmount,
       total,
-      status: asDraft ? 'draft' : 'sent',
+      status: pendingSaveAsDraft ? 'draft' : 'sent',
       notes: notes.trim(),
     }).select().single();
 
@@ -223,8 +231,6 @@ export default function FacturaPage() {
 
   const handleMarkPaid = async (invoice: Invoice) => {
     await supabase.from('invoices').update({ status: 'paid' }).eq('id', invoice.id);
-
-    // Auto-create income entry in REDITUS
     const today = new Date();
     const y = today.getFullYear(), mo = today.getMonth() + 1, d = today.getDate();
     const after = mo > 4 || (mo === 4 && d >= 6);
@@ -234,20 +240,20 @@ export default function FacturaPage() {
     if (n >= 406 && n <= 705) quarter = 'Q1';
     else if (n >= 706 && n <= 1005) quarter = 'Q2';
     else if (n >= 1006 || n <= 105) quarter = 'Q3';
-
-    await supabase.from('transactions').insert({
-      user_id: userId,
-      type: 'INCOME',
-      description: `Invoice ${invoice.invoice_number} — ${invoice.client_name}`,
-      amount_gross: invoice.total,
-      status: 'CONFIRMED',
-      tax_year: taxYear,
-      quarter,
-      date: today.toISOString().split('T')[0],
-    });
-
+    await supabase.from('transactions').insert({ user_id: userId, type: 'INCOME', description: `Invoice ${invoice.invoice_number} — ${invoice.client_name}`, amount_gross: invoice.total, status: 'CONFIRMED', tax_year: taxYear, quarter, date: today.toISOString().split('T')[0] });
     await loadData();
     setSelected(prev => prev ? { ...prev, status: 'paid' } : null);
+  };
+
+  const loadTemplate = (t: ClientTemplate) => {
+    setClientName(t.name);
+    setClientEmail(t.email || '');
+    setClientAddress(t.address || '');
+  };
+
+  const deleteTemplate = async (id: string) => {
+    await supabase.from('client_templates').delete().eq('id', id);
+    setTemplates(templates.filter(t => t.id !== id));
   };
 
   const resetForm = () => {
@@ -264,97 +270,115 @@ export default function FacturaPage() {
   };
 
   const inputStyle = { width: '100%', padding: '10px 14px', fontSize: 14, border: '1px solid #E5E7EB', borderRadius: 10, outline: 'none', fontFamily: "'DM Sans', sans-serif", color: '#1C1C1E', background: '#fff' };
-  const labelStyle = { display: 'block', fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 6 };
+  const labelStyle: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 };
 
   return (
     <ThemeProvider>
       <div style={{ display: 'flex', minHeight: '100vh', background: '#F8FAFB', fontFamily: "'DM Sans', sans-serif" }}>
         <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Montserrat:wght@600;700;800&display=swap'); * { box-sizing: border-box; }`}</style>
 
+        {/* Save-as-template dialog */}
+        {showTemplateDialog && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div style={{ background: '#fff', borderRadius: 20, padding: '32px', maxWidth: 440, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 20 }}>
+                <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#F0FDF8', border: '1px solid #BBF7E4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 18 }}>💾</div>
+                <div>
+                  <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 16, color: '#0A2E1E', marginBottom: 6 }}>Save client for next time?</div>
+                  <div style={{ fontSize: 13, color: '#6B7280', lineHeight: 1.6 }}>
+                    Save <strong>{clientName}</strong> as a client template so you can pre-fill their details instantly on future invoices — perfect for regular clients.
+                  </div>
+                </div>
+              </div>
+              <div style={{ background: '#F0FDF8', border: '1px solid #BBF7E4', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#065F46', marginBottom: 24, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                <span style={{ flexShrink: 0 }}>ℹ️</span>
+                <span>Templates save the client name, email and address. You can manage them from the FACTURA invoice form.</span>
+              </div>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => handleSave(true)} style={{ flex: 1, fontSize: 14, padding: '11px', borderRadius: 10, background: '#01D98D', color: '#0A2E1E', border: 'none', fontWeight: 700, cursor: 'pointer' }}>
+                  Yes, save template
+                </button>
+                <button onClick={() => handleSave(false)} style={{ flex: 1, fontSize: 14, padding: '11px', borderRadius: 10, background: '#F3F4F6', color: '#6B7280', border: 'none', fontWeight: 600, cursor: 'pointer' }}>
+                  No, just save invoice
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <Sidebar active="FACTURA" userName={userName} plan={plan} netProfit={netProfit} />
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-
-          {/* Top bar — desktop only */}
           {!isMobile && (
             <div style={{ background: '#fff', borderBottom: '0.5px solid #E5E7EB', padding: '0 28px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 18, color: '#0A2E1E' }}>FACTURA</div>
-              {view === 'list' && (
-                <button onClick={() => { resetForm(); setView('create'); }} style={{ fontSize: 13, padding: '8px 18px', borderRadius: 9, background: '#01D98D', color: '#0A2E1E', border: 'none', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                  + New invoice
-                </button>
-              )}
-              {view !== 'list' && (
-                <button onClick={() => setView('list')} style={{ fontSize: 13, padding: '8px 18px', borderRadius: 9, background: '#F3F4F6', color: '#0A2E1E', border: 'none', fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-                  ← Back
-                </button>
-              )}
+              {view === 'list' && <button onClick={() => { resetForm(); setView('create'); }} style={{ fontSize: 13, padding: '8px 18px', borderRadius: 9, background: '#01D98D', color: '#0A2E1E', border: 'none', fontWeight: 700, cursor: 'pointer' }}>+ New invoice</button>}
+              {view !== 'list' && <button onClick={() => setView('list')} style={{ fontSize: 13, padding: '8px 18px', borderRadius: 9, background: '#F3F4F6', color: '#0A2E1E', border: 'none', fontWeight: 600, cursor: 'pointer' }}>← Back</button>}
             </div>
           )}
 
           <div style={{ flex: 1, padding: isMobile ? '12px 14px 24px' : '24px 28px', overflowY: 'auto' }}>
-
-            {/* Mobile header */}
             {isMobile && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 16, color: '#0A2E1E' }}>
-                  {view === 'list' ? 'FACTURA' : view === 'create' ? 'New Invoice' : 'Invoice'}
-                </div>
-                {view === 'list' ? (
-                  <button onClick={() => { resetForm(); setView('create'); }} style={{ fontSize: 12, padding: '7px 14px', borderRadius: 9, background: '#01D98D', color: '#0A2E1E', border: 'none', fontWeight: 700, cursor: 'pointer' }}>+ New</button>
-                ) : (
-                  <button onClick={() => setView('list')} style={{ fontSize: 12, padding: '7px 14px', borderRadius: 9, background: '#F3F4F6', color: '#0A2E1E', border: 'none', fontWeight: 600, cursor: 'pointer' }}>← Back</button>
-                )}
+                <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 16, color: '#0A2E1E' }}>{view === 'list' ? 'FACTURA' : view === 'create' ? 'New Invoice' : 'Invoice'}</div>
+                {view === 'list' ? <button onClick={() => { resetForm(); setView('create'); }} style={{ fontSize: 12, padding: '7px 14px', borderRadius: 9, background: '#01D98D', color: '#0A2E1E', border: 'none', fontWeight: 700, cursor: 'pointer' }}>+ New</button>
+                  : <button onClick={() => setView('list')} style={{ fontSize: 12, padding: '7px 14px', borderRadius: 9, background: '#F3F4F6', color: '#0A2E1E', border: 'none', fontWeight: 600, cursor: 'pointer' }}>← Back</button>}
               </div>
             )}
 
-            {/* ── LIST VIEW ── */}
+            {/* LIST */}
             {view === 'list' && (
-              <>
-                {loading ? (
-                  <div style={{ color: '#9CA3AF', fontSize: 14 }}>Loading invoices...</div>
-                ) : invoices.length === 0 ? (
-                  <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 16, padding: '48px 24px', textAlign: 'center' }}>
-                    <div style={{ fontSize: 32, marginBottom: 12 }}>🧾</div>
-                    <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 16, color: '#0A2E1E', marginBottom: 8 }}>No invoices yet</div>
-                    <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 24 }}>Create your first invoice and get paid faster.</div>
-                    <button onClick={() => { resetForm(); setView('create'); }} style={{ fontSize: 13, padding: '10px 24px', borderRadius: 10, background: '#01D98D', color: '#0A2E1E', border: 'none', fontWeight: 700, cursor: 'pointer' }}>
-                      + Create invoice
-                    </button>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {invoices.map(inv => {
-                      const sc = statusColor(inv.status);
-                      return (
-                        <div key={inv.id} onClick={() => openDetail(inv)} style={{ background: '#fff', border: '0.5px solid #E5E7EB', borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', gap: 12 }}>
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ fontWeight: 700, fontSize: 14, color: '#0A2E1E', marginBottom: 2 }}>{inv.invoice_number}</div>
-                            <div style={{ fontSize: 12, color: '#6B7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{inv.client_name}</div>
-                            <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{inv.issue_date}</div>
-                          </div>
-                          <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                            <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 16, color: '#0A2E1E', marginBottom: 6 }}>{fmt(inv.total)}</div>
-                            <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: sc.bg, color: sc.color, border: `1px solid ${sc.border}` }}>
-                              {inv.status.toUpperCase()}
-                            </span>
-                          </div>
+              loading ? <div style={{ color: '#9CA3AF', fontSize: 14 }}>Loading invoices...</div>
+              : invoices.length === 0 ? (
+                <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 16, padding: '48px 24px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 32, marginBottom: 12 }}>🧾</div>
+                  <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 16, color: '#0A2E1E', marginBottom: 8 }}>No invoices yet</div>
+                  <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 24 }}>Create your first invoice and get paid faster.</div>
+                  <button onClick={() => { resetForm(); setView('create'); }} style={{ fontSize: 13, padding: '10px 24px', borderRadius: 10, background: '#01D98D', color: '#0A2E1E', border: 'none', fontWeight: 700, cursor: 'pointer' }}>+ Create invoice</button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {invoices.map(inv => {
+                    const sc = statusColor(inv.status);
+                    return (
+                      <div key={inv.id} onClick={() => openDetail(inv)} style={{ background: '#fff', border: '0.5px solid #E5E7EB', borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', gap: 12 }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: '#0A2E1E', marginBottom: 2 }}>{inv.invoice_number}</div>
+                          <div style={{ fontSize: 12, color: '#6B7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{inv.client_name}</div>
+                          <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{inv.issue_date}</div>
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </>
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 16, color: '#0A2E1E', marginBottom: 6 }}>{fmt(inv.total)}</div>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: sc.bg, color: sc.color, border: `1px solid ${sc.border}` }}>{inv.status.toUpperCase()}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
             )}
 
-            {/* ── CREATE VIEW ── */}
+            {/* CREATE */}
             {view === 'create' && (
               <div style={{ maxWidth: 720, margin: '0 auto' }}>
                 {msg && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '10px 16px', fontSize: 13, color: '#991B1B', marginBottom: 16 }}>{msg}</div>}
 
                 {/* Client details */}
                 <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 16, padding: '24px', marginBottom: 16 }}>
-                  <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E', marginBottom: 20 }}>Client Details</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+                    <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E' }}>Client Details</div>
+                    {templates.length > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 12, color: '#6B7280' }}>Load saved client:</span>
+                        <select onChange={e => { const t = templates.find(t => t.id === e.target.value); if (t) loadTemplate(t); e.target.value = ''; }}
+                          style={{ fontSize: 12, padding: '6px 10px', border: '1px solid #E5E7EB', borderRadius: 8, outline: 'none', color: '#0A2E1E', background: '#fff', cursor: 'pointer' }}>
+                          <option value="">— select —</option>
+                          {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+
                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 16 }}>
                     <div>
                       <label style={labelStyle}>Client Name *</label>
@@ -370,15 +394,24 @@ export default function FacturaPage() {
                     <textarea value={clientAddress} onChange={e => setClientAddress(e.target.value)} placeholder="123 High Street&#10;London&#10;EC1A 1BB" rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
                   </div>
                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16 }}>
-                    <div>
-                      <label style={labelStyle}>Issue Date</label>
-                      <input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)} style={inputStyle} />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Due Date</label>
-                      <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} style={inputStyle} />
-                    </div>
+                    <div><label style={labelStyle}>Issue Date</label><input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)} style={inputStyle} /></div>
+                    <div><label style={labelStyle}>Due Date</label><input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} style={inputStyle} /></div>
                   </div>
+
+                  {/* Saved templates management */}
+                  {templates.length > 0 && (
+                    <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #F3F4F6' }}>
+                      <div style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>Saved Clients</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                        {templates.map(t => (
+                          <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#F9FAFB', border: '1px solid #E5E7EB', borderRadius: 8, padding: '5px 10px' }}>
+                            <span style={{ fontSize: 12, color: '#0A2E1E', fontWeight: 500 }}>{t.name}</span>
+                            <button onClick={() => deleteTemplate(t.id)} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: 12, padding: 0, lineHeight: 1 }}>✕</button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Line items */}
@@ -386,40 +419,18 @@ export default function FacturaPage() {
                   <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E', marginBottom: 20 }}>Line Items</div>
                   {items.map((item, idx) => (
                     <div key={idx} style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '3fr 1fr 1fr 1fr auto', gap: 10, marginBottom: 12, alignItems: 'end' }}>
-                      <div>
-                        {idx === 0 && <label style={labelStyle}>Description</label>}
-                        <input value={item.description} onChange={e => updateItem(idx, 'description', e.target.value)} placeholder="Service or product" style={inputStyle} />
-                      </div>
-                      <div>
-                        {idx === 0 && <label style={labelStyle}>Qty</label>}
-                        <input type="number" min="0" value={item.quantity} onChange={e => updateItem(idx, 'quantity', parseFloat(e.target.value) || 0)} style={inputStyle} />
-                      </div>
-                      <div>
-                        {idx === 0 && <label style={labelStyle}>Unit Price</label>}
-                        <input type="number" min="0" step="0.01" value={item.unit_price} onChange={e => updateItem(idx, 'unit_price', parseFloat(e.target.value) || 0)} style={inputStyle} />
-                      </div>
-                      <div>
-                        {idx === 0 && <label style={labelStyle}>Total</label>}
-                        <input value={fmt(item.total)} disabled style={{ ...inputStyle, background: '#F9FAFB', color: '#6B7280', fontWeight: 700 }} />
-                      </div>
-                      <div style={{ paddingBottom: 2 }}>
-                        {items.length > 1 && (
-                          <button onClick={() => setItems(items.filter((_, i) => i !== idx))} style={{ padding: '10px 12px', background: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14 }}>✕</button>
-                        )}
-                      </div>
+                      <div>{idx === 0 && <label style={labelStyle}>Description</label>}<input value={item.description} onChange={e => updateItem(idx, 'description', e.target.value)} placeholder="Service or product" style={inputStyle} /></div>
+                      <div>{idx === 0 && <label style={labelStyle}>Qty</label>}<input type="number" min="0" value={item.quantity} onChange={e => updateItem(idx, 'quantity', parseFloat(e.target.value) || 0)} style={inputStyle} /></div>
+                      <div>{idx === 0 && <label style={labelStyle}>Unit Price</label>}<input type="number" min="0" step="0.01" value={item.unit_price} onChange={e => updateItem(idx, 'unit_price', parseFloat(e.target.value) || 0)} style={inputStyle} /></div>
+                      <div>{idx === 0 && <label style={labelStyle}>Total</label>}<input value={fmt(item.total)} disabled style={{ ...inputStyle, background: '#F9FAFB', color: '#6B7280', fontWeight: 700 }} /></div>
+                      <div style={{ paddingBottom: 2 }}>{items.length > 1 && <button onClick={() => setItems(items.filter((_, i) => i !== idx))} style={{ padding: '10px 12px', background: '#FEF2F2', color: '#EF4444', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 14 }}>✕</button>}</div>
                     </div>
                   ))}
-                  <button onClick={() => setItems([...items, { description: '', quantity: 1, unit_price: 0, total: 0 }])}
-                    style={{ fontSize: 13, padding: '8px 16px', borderRadius: 9, background: '#F0FDF8', color: '#065F46', border: '1px solid #BBF7E4', cursor: 'pointer', fontWeight: 600, marginTop: 4 }}>
-                    + Add line
-                  </button>
-
-                  {/* Totals */}
+                  <button onClick={() => setItems([...items, { description: '', quantity: 1, unit_price: 0, total: 0 }])} style={{ fontSize: 13, padding: '8px 16px', borderRadius: 9, background: '#F0FDF8', color: '#065F46', border: '1px solid #BBF7E4', cursor: 'pointer', fontWeight: 600, marginTop: 4 }}>+ Add line</button>
                   <div style={{ marginTop: 24, borderTop: '1px solid #E5E7EB', paddingTop: 16 }}>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 16, alignItems: 'center', marginBottom: 10 }}>
                       <span style={{ fontSize: 12, color: '#6B7280' }}>VAT %</span>
-                      <input type="number" min="0" max="100" value={vatRate} onChange={e => setVatRate(parseFloat(e.target.value) || 0)}
-                        style={{ width: 80, padding: '7px 10px', fontSize: 13, border: '1px solid #E5E7EB', borderRadius: 8, outline: 'none', textAlign: 'right' }} />
+                      <input type="number" min="0" max="100" value={vatRate} onChange={e => setVatRate(parseFloat(e.target.value) || 0)} style={{ width: 80, padding: '7px 10px', fontSize: 13, border: '1px solid #E5E7EB', borderRadius: 8, outline: 'none', textAlign: 'right' }} />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
                       <div style={{ fontSize: 13, color: '#6B7280' }}>Subtotal: <strong>{fmt(subtotal)}</strong></div>
@@ -435,39 +446,29 @@ export default function FacturaPage() {
                   <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Payment terms, bank details, thank you message..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
                 </div>
 
-                {/* Actions */}
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                  <button onClick={() => handleSave(false)} disabled={saving}
-                    style={{ flex: 1, fontSize: 14, padding: '12px 24px', borderRadius: 10, background: saving ? '#a3f0d4' : '#01D98D', color: '#0A2E1E', border: 'none', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
+                  <button onClick={() => handleSaveClick(false)} disabled={saving} style={{ flex: 1, fontSize: 14, padding: '12px 24px', borderRadius: 10, background: saving ? '#a3f0d4' : '#01D98D', color: '#0A2E1E', border: 'none', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
                     {saving ? 'Saving...' : 'Save & Mark as Sent'}
                   </button>
-                  <button onClick={() => handleSave(true)} disabled={saving}
-                    style={{ fontSize: 14, padding: '12px 24px', borderRadius: 10, background: '#F3F4F6', color: '#0A2E1E', border: 'none', fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer' }}>
+                  <button onClick={() => handleSaveClick(true)} disabled={saving} style={{ fontSize: 14, padding: '12px 24px', borderRadius: 10, background: '#F3F4F6', color: '#0A2E1E', border: 'none', fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer' }}>
                     Save as Draft
                   </button>
                 </div>
               </div>
             )}
 
-            {/* ── DETAIL VIEW ── */}
+            {/* DETAIL */}
             {view === 'detail' && selected && (
               <div style={{ maxWidth: 720, margin: '0 auto' }}>
-                {/* Status + actions bar */}
                 <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 16, padding: '20px 24px', marginBottom: 16, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
                   <div>
                     <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 18, color: '#0A2E1E' }}>{selected.invoice_number}</div>
                     <div style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}>{selected.client_name} · {selected.issue_date}</div>
                   </div>
                   <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    <button onClick={() => printInvoice(selected, businessName)}
-                      style={{ fontSize: 12, padding: '8px 16px', borderRadius: 9, background: '#F3F4F6', color: '#0A2E1E', border: 'none', fontWeight: 600, cursor: 'pointer' }}>
-                      🖨 Print / PDF
-                    </button>
+                    <button onClick={() => printInvoice(selected, businessName, logoUrl, initials)} style={{ fontSize: 12, padding: '8px 16px', borderRadius: 9, background: '#F3F4F6', color: '#0A2E1E', border: 'none', fontWeight: 600, cursor: 'pointer' }}>🖨 Print / PDF</button>
                     {selected.status !== 'paid' && selected.status !== 'cancelled' && (
-                      <button onClick={() => handleMarkPaid(selected)}
-                        style={{ fontSize: 12, padding: '8px 16px', borderRadius: 9, background: '#01D98D', color: '#0A2E1E', border: 'none', fontWeight: 700, cursor: 'pointer' }}>
-                        ✓ Mark as Paid
-                      </button>
+                      <button onClick={() => handleMarkPaid(selected)} style={{ fontSize: 12, padding: '8px 16px', borderRadius: 9, background: '#01D98D', color: '#0A2E1E', border: 'none', fontWeight: 700, cursor: 'pointer' }}>✓ Mark as Paid</button>
                     )}
                     {selected.status === 'paid' && (
                       <span style={{ fontSize: 11, fontWeight: 700, padding: '8px 16px', borderRadius: 9, background: '#F0FDF8', color: '#065F46', border: '1px solid #BBF7E4' }}>✓ PAID — added to REDITUS</span>
@@ -475,7 +476,6 @@ export default function FacturaPage() {
                   </div>
                 </div>
 
-                {/* Invoice details */}
                 <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 16, padding: '24px', marginBottom: 16 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 24, marginBottom: 24 }}>
                     <div>
@@ -490,8 +490,6 @@ export default function FacturaPage() {
                       {selected.due_date && <div style={{ fontSize: 13, color: '#6B7280', marginTop: 4 }}>Due date: <strong style={{ color: '#0A2E1E' }}>{selected.due_date}</strong></div>}
                     </div>
                   </div>
-
-                  {/* Items table */}
                   <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 20 }}>
                       <thead>
@@ -513,19 +511,12 @@ export default function FacturaPage() {
                       </tbody>
                     </table>
                   </div>
-
-                  {/* Totals */}
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
                     <div style={{ fontSize: 13, color: '#6B7280' }}>Subtotal: <strong>{fmt(selected.subtotal)}</strong></div>
                     {selected.tax_amount > 0 && <div style={{ fontSize: 13, color: '#6B7280' }}>VAT: <strong>{fmt(selected.tax_amount)}</strong></div>}
                     <div style={{ fontSize: 20, fontWeight: 800, color: '#0A2E1E', fontFamily: "'Montserrat', sans-serif", marginTop: 4 }}>{fmt(selected.total)}</div>
                   </div>
-
-                  {selected.notes && (
-                    <div style={{ marginTop: 20, padding: '14px 16px', background: '#F9FAFB', borderRadius: 10, fontSize: 13, color: '#6B7280', lineHeight: 1.6 }}>
-                      <strong>Notes:</strong> {selected.notes}
-                    </div>
-                  )}
+                  {selected.notes && <div style={{ marginTop: 20, padding: '14px 16px', background: '#F9FAFB', borderRadius: 10, fontSize: 13, color: '#6B7280', lineHeight: 1.6 }}><strong>Notes:</strong> {selected.notes}</div>}
                 </div>
               </div>
             )}
