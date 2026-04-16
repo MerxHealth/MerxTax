@@ -34,7 +34,7 @@ export default function NavHeader() {
       width: '100%',
       backgroundColor: '#ffffff',
       borderBottom: '1px solid #e5e7eb',
-      padding: '0 32px',
+      padding: '0 32px 0 16px',
       height: 64,
       display: 'flex',
       alignItems: 'center',
