@@ -112,19 +112,32 @@ export default function Sidebar({ active, userName = 'You', plan = 'SOLO', netPr
       {/* Balance panel */}
       <div style={{ padding: '16px 14px 12px', borderBottom: `1px solid ${s.divider}` }}>
         <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.7px', color: s.balLabel, marginBottom: 4, fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>Net profit YTD</div>
-        <div style={{ fontSize: 30, fontWeight: 800, color: s.balValue, marginBottom: 10, fontFamily: "'Montserrat', sans-serif", lineHeight: 1 }}>{fmt(netProfit)}</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 5 }}>
-          {[
-            { label: 'Income', value: fmt(income), color: s.incomeColor },
-            { label: 'Expenses', value: fmt(expenses), color: s.expenseColor },
-            { label: 'Tax due', value: fmt(taxDue), color: s.taxColor },
-          ].map(item => (
-            <div key={item.label} style={{ background: s.tileBackground, borderRadius: 6, padding: '7px 8px' }}>
-              <div style={{ fontSize: 9, color: s.tileLabel, marginBottom: 2, fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>{item.label}</div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: item.color, fontFamily: "'Montserrat', sans-serif" }}>{item.value}</div>
+        {netProfit === 0 && income === 0 && expenses === 0 ? (
+          <div style={{ textAlign: 'center', padding: '6px 4px 4px' }}>
+            <div style={{ fontSize: 20, marginBottom: 5 }}>🚀</div>
+            <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 12, color: s.balValue, marginBottom: 4 }}>Ready to start?</div>
+            <div style={{ fontSize: 10, color: s.balLabel, lineHeight: 1.4, marginBottom: 8 }}>Add your first transaction to see your numbers.</div>
+            <div onClick={() => go('/dashboard')} style={{ display: 'inline-block', fontSize: 10, fontWeight: 700, padding: '5px 14px', background: 'rgba(255,255,255,0.25)', color: s.balValue, borderRadius: 20, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+              + Add transaction
             </div>
-          ))}
-        </div>
+          </div>
+        ) : (
+          <>
+            <div style={{ fontSize: 30, fontWeight: 800, color: s.balValue, marginBottom: 10, fontFamily: "'Montserrat', sans-serif", lineHeight: 1 }}>{fmt(netProfit)}</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 5 }}>
+              {[
+                { label: 'Income', value: fmt(income), color: s.incomeColor },
+                { label: 'Expenses', value: fmt(expenses), color: s.expenseColor },
+                { label: 'Tax due', value: fmt(taxDue), color: s.taxColor },
+              ].map(item => (
+                <div key={item.label} style={{ background: s.tileBackground, borderRadius: 6, padding: '7px 8px' }}>
+                  <div style={{ fontSize: 9, color: s.tileLabel, marginBottom: 2, fontFamily: "'DM Sans', sans-serif", fontWeight: 500 }}>{item.label}</div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: item.color, fontFamily: "'Montserrat', sans-serif" }}>{item.value}</div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Navigation */}
