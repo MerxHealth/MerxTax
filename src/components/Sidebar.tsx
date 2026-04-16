@@ -112,7 +112,7 @@ export default function Sidebar({ active, userName = 'You', plan = 'SOLO', netPr
       {/* Balance panel */}
       <div style={{ padding: '16px 14px 12px', borderBottom: `1px solid ${s.divider}` }}>
         <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.7px', color: s.balLabel, marginBottom: 4, fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>Net profit YTD</div>
-        <div style={{ fontSize: 26, fontWeight: 800, color: s.balValue, marginBottom: 10, fontFamily: "'Montserrat', sans-serif", lineHeight: 1 }}>{fmt(netProfit)}</div>
+        <div style={{ fontSize: 30, fontWeight: 800, color: s.balValue, marginBottom: 10, fontFamily: "'Montserrat', sans-serif", lineHeight: 1 }}>{fmt(netProfit)}</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 5 }}>
           {[
             { label: 'Income', value: fmt(income), color: s.incomeColor },

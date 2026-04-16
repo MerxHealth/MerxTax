@@ -45,7 +45,7 @@ export default function NavHeader() {
 
       {/* Logo — left side */}
       <a href="/dashboard" style={{ display: 'flex', alignItems: 'center', textDecoration: 'none' }}>
-        <img src="/logo.png" alt="MerxTax" style={{ height: '46px', width: 'auto' }} />
+        <img src="/logo.png" alt="MerxTax" style={{ height: '56px', width: 'auto' }} />
       </a>
 
       {/* Nav links — right side */}
