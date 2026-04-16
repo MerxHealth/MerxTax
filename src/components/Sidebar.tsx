@@ -62,7 +62,7 @@ export default function Sidebar({ active, userName = 'You', plan = 'SOLO', netPr
           display: 'flex',
           alignItems: 'center',
           gap: 10,
-          padding: '9px 16px',
+          padding: '7px 14px',
           borderLeft: `3px solid ${isActive ? s.activeBorder : 'transparent'}`,
           background: isActive ? s.activeBackground : 'transparent',
           cursor: 'pointer',
@@ -104,14 +104,14 @@ export default function Sidebar({ active, userName = 'You', plan = 'SOLO', netPr
   };
 
   const sectionLabel = (text: string) => (
-    <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.8px', padding: '10px 16px 4px', color: s.sectionColor, fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>{text}</div>
+    <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.8px', padding: '7px 14px 3px', color: s.sectionColor, fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>{text}</div>
   );
 
   const sidebarContent = (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
 
       {/* Balance panel */}
-      <div style={{ padding: '16px 14px 12px', borderBottom: `1px solid ${s.divider}` }}>
+      <div style={{ padding: '12px 14px 10px', borderBottom: `1px solid ${s.divider}` }}>
         <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.7px', color: s.balLabel, marginBottom: 4, fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>Net profit YTD</div>
         {dataLoaded && netProfit === 0 && income === 0 && expenses === 0 ? (
           <div style={{ textAlign: 'center', padding: '6px 4px 4px' }}>
@@ -153,7 +153,7 @@ export default function Sidebar({ active, userName = 'You', plan = 'SOLO', netPr
       {/* Profile + User */}
       <div style={{ borderTop: `1px solid ${s.divider}` }}>
         {navItem('PROFILE', 'Settings & Subscription', '/dashboard/profile')}
-        <div style={{ padding: '10px 16px 14px', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ padding: '8px 14px 10px', display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 30, height: 30, borderRadius: '50%', background: s.avatarBackground, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: s.avatarColor, flexShrink: 0 }}>
             {userName.charAt(0).toUpperCase()}
           </div>
