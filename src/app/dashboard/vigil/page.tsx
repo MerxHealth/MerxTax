@@ -182,8 +182,6 @@ export default function VigilPage() {
           {!isMobile && (
             <div style={{ background: '#fff', borderBottom: '0.5px solid #E5E7EB', padding: '0 28px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-                <img src="/logo.png" alt="MerxTax" style={{ height: 160, width: 'auto' }} />
-                <div style={{ width: 1, height: 24, background: '#E5E7EB' }} />
                 <span style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E' }}>
                   VIGIL <span style={{ color: '#01D98D' }}>|</span> Deadlines &amp; Penalties
                 </span>
