@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
-const ADMIN_EMAIL = 'marco@merxdigital.com'; // change to your actual email
+const ADMIN_EMAIL = 'mark.dyas@merxdigital.co.uk';
 
 type Relationship = {
   id: string;
