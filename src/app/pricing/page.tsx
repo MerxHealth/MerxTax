@@ -116,7 +116,7 @@ export default function PricingPage() {
                   disabled={loading === plan.key}
                   style={{
                     marginTop: 24, width: '100%', padding: '12px 0', borderRadius: 8, border: 'none',
-                    background: plan.highlight ? '#01D98D' : '#0A2E1E', color: '#fff',
+                    background: plan.highlight ? '#01D98D' : '#01D98D', color: '#0A2E1E',
                     fontWeight: 700, fontSize: 15, cursor: loading === plan.key ? 'not-allowed' : 'pointer',
                     opacity: loading === plan.key ? 0.7 : 1, fontFamily: 'DM Sans, sans-serif',
                   }}>
