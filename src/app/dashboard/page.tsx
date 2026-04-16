@@ -405,7 +405,15 @@ export default function DashboardPage() {
                 </div>
 
                 {!connected && !loading && (
-                  <div className="hmrc-banner" style={{ display: 'none' }} />
+                  <div className="hmrc-banner" style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '18px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: '#0A2E1E', marginBottom: 4 }}>Connect HMRC</div>
+                      <div style={{ fontSize: 13, color: '#6B7280' }}>Link your HMRC account to enable MTD submissions and real-time compliance checking.</div>
+                    </div>
+                    <a href="/api/auth/hmrc" style={{ padding: '10px 22px', background: '#01D98D', color: '#0A2E1E', borderRadius: 9, fontWeight: 700, fontSize: 13, textDecoration: 'none', flexShrink: 0, marginLeft: 20 }}>
+                      Connect now →
+                    </a>
+                  </div>
                 )}
               </>
             )}
