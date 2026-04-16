@@ -231,7 +231,7 @@ export default function DashboardPage() {
     { num: 4, title: 'Ask LUMEN a question', desc: 'Your AI tax advisor is ready — try it now', done: false, href: '/dashboard/lumen', action: 'Ask →' },
   ];
   const stepsComplete = onboardingSteps.filter(s => s.done).length;
-  const showOnboarding = !loading && totalTx === 0;
+  const showOnboarding = totalTx === 0; // show onboarding by default until data confirms otherwise
 
   return (
     <ThemeProvider>
