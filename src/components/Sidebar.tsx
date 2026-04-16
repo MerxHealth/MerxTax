@@ -12,6 +12,7 @@ type SidebarProps = {
   expenses?: number;
   taxDue?: number;
   badge?: Record<string, number>;
+  dataLoaded?: boolean;
 };
 
 function fmt(n: number) {
@@ -32,7 +33,7 @@ const TOOL_ITEMS = [
   { label: 'AGENT', sub: 'SA Agent Filing', href: '/dashboard/agent' },
 ];
 
-export default function Sidebar({ active, userName = 'You', plan = 'SOLO', netProfit = 0, income = 0, expenses = 0, taxDue = 0, badge = {} }: SidebarProps) {
+export default function Sidebar({ active, userName = 'You', plan = 'SOLO', netProfit = 0, income = 0, expenses = 0, taxDue = 0, badge = {}, dataLoaded = false }: SidebarProps) {
   const { theme } = useTheme();
   const s = getSidebarStyles(theme);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -112,7 +113,7 @@ export default function Sidebar({ active, userName = 'You', plan = 'SOLO', netPr
       {/* Balance panel */}
       <div style={{ padding: '16px 14px 12px', borderBottom: `1px solid ${s.divider}` }}>
         <div style={{ fontSize: 9, textTransform: 'uppercase', letterSpacing: '0.7px', color: s.balLabel, marginBottom: 4, fontFamily: "'DM Sans', sans-serif", fontWeight: 600 }}>Net profit YTD</div>
-        {netProfit === 0 && income === 0 && expenses === 0 ? (
+        {dataLoaded && netProfit === 0 && income === 0 && expenses === 0 ? (
           <div style={{ textAlign: 'center', padding: '6px 4px 4px' }}>
             <div style={{ fontSize: 20, marginBottom: 5 }}>🚀</div>
             <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 12, color: s.balValue, marginBottom: 4 }}>Ready to start?</div>

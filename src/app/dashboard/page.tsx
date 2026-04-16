@@ -255,7 +255,7 @@ export default function DashboardPage() {
           }
         `}</style>
 
-        <Sidebar active="DASHBOARD" userName={userName} plan={plan} netProfit={netProfit} income={income} expenses={expenses} taxDue={taxDue} badge={draftTx > 0 ? { REDITUS: draftTx } : {}} />
+        <Sidebar active="DASHBOARD" userName={userName} plan={plan} netProfit={netProfit} income={income} expenses={expenses} taxDue={taxDue} badge={draftTx > 0 ? { REDITUS: draftTx } : {}} dataLoaded={!loading} />
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
           <div className="dash-topbar" style={{ background: '#fff', borderBottom: '0.5px solid #E5E7EB', padding: '0 28px', height: 64, alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
