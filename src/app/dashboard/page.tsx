@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { ThemeProvider } from '@/lib/ThemeContext';
 import Sidebar from '@/components/Sidebar';
-import Logo from '@/components/Logo';
 
 function getTaxYear(date: Date): string {
   const y = date.getFullYear(), m = date.getMonth() + 1, d = date.getDate();
@@ -146,14 +145,12 @@ export default function DashboardPage() {
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Montserrat:wght@600;700;800&display=swap');
           * { box-sizing: border-box; }
-
           .dash-topbar { display: flex; }
           .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
           .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-bottom: 20px; }
           .quarter-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 18px; }
           .quickadd-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
           .dash-content { flex: 1; padding: 12px 28px 24px; overflow-y: auto; }
-
           @media (max-width: 767px) {
             .dash-topbar { display: none !important; }
             .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
@@ -179,14 +176,10 @@ export default function DashboardPage() {
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
 
-          {/* Top bar — desktop only */}
+          {/* Top bar — desktop only, no logo (logo is in NavHeader) */}
           <div className="dash-topbar" style={{ background: '#fff', borderBottom: '0.5px solid #E5E7EB', padding: '0 28px', height: 64, alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-              <Logo height={160} />
-              <div style={{ width: 1, height: 24, background: '#E5E7EB' }} />
-              <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E' }}>
-                {loading ? '' : `${getGreeting()}${userName ? `, ${userName}` : ''}.`}
-              </div>
+            <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E' }}>
+              {loading ? '' : `${getGreeting()}${userName ? `, ${userName}` : ''}.`}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <span style={{ fontSize: 12, color: '#9CA3AF' }}>{today.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
@@ -198,7 +191,6 @@ export default function DashboardPage() {
 
           <div className="dash-content">
 
-            {/* Next action banner */}
             {!loading && (
               <div style={{ background: '#F0FDF8', border: '1px solid #BBF7E4', borderRadius: 10, padding: '11px 18px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#01D98D', flexShrink: 0 }} />
@@ -206,7 +198,6 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Stat cards */}
             <div className="stat-grid">
               {[
                 { label: 'Net profit', value: fmt(netProfit), sub: `${currentTaxYear} tax year`, color: '#0A2E1E' },
@@ -222,7 +213,6 @@ export default function DashboardPage() {
               ))}
             </div>
 
-            {/* Quarter + Compliance */}
             <div className="main-grid">
               <div style={{ background: '#fff', border: '0.5px solid #E5E7EB', borderRadius: 12, padding: '18px 20px' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#0A2E1E', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 14 }}>Quarter status — {currentTaxYear}</div>
@@ -274,7 +264,6 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Connect HMRC */}
             {!connected && !loading && (
               <div className="hmrc-banner" style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '18px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
@@ -286,7 +275,6 @@ export default function DashboardPage() {
                 </a>
               </div>
             )}
-
           </div>
         </div>
       </div>
