@@ -240,8 +240,8 @@ export default function DashboardPage() {
           @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Montserrat:wght@600;700;800&display=swap');
           * { box-sizing: border-box; }
           .dash-topbar { display: flex; }
-          .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; }
-          .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; margin-bottom: 20px; }
+          .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+          .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 14px; }
           .quarter-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 18px; }
           .dash-content { flex: 1; padding: 12px 28px 16px; overflow-y: auto; }
           @media (max-width: 767px) {
@@ -325,7 +325,7 @@ export default function DashboardPage() {
               <>
                 {/* === RETURNING USER: normal dashboard === */}
                 {!loading && (
-                  <div style={{ background: '#F0FDF8', border: '1px solid #BBF7E4', borderRadius: 10, padding: '11px 18px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+                  <div style={{ background: '#F0FDF8', border: '1px solid #BBF7E4', borderRadius: 10, padding: '9px 16px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#01D98D', flexShrink: 0 }} />
                     <div style={{ fontSize: 13, color: '#065F46', fontWeight: 500 }}>{nextAction}</div>
                   </div>
@@ -338,7 +338,7 @@ export default function DashboardPage() {
                     { label: 'Transactions', value: totalTx.toString(), sub: draftTx > 0 ? `${draftTx} drafts pending` : 'All confirmed', color: '#0A2E1E' },
                     { label: 'Compliance', value: complianceScore.toString(), sub: complianceScore >= 80 ? 'Good standing' : 'Needs attention', color: scoreColor },
                   ].map(item => (
-                    <div key={item.label} style={{ background: '#fff', border: '0.5px solid #E5E7EB', borderRadius: 12, padding: '16px 18px', display: 'flex', flexDirection: 'column', minHeight: 96 }}>
+                    <div key={item.label} style={{ background: '#fff', border: '0.5px solid #E5E7EB', borderRadius: 12, padding: '12px 16px', display: 'flex', flexDirection: 'column', minHeight: 80 }}>
                       <div style={{ fontSize: 10, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{item.label}</div>
                       <div style={{ fontSize: 24, fontWeight: 800, color: item.color, marginTop: 'auto', paddingTop: 8, fontFamily: "'Montserrat', sans-serif", lineHeight: 1 }}>{loading ? '—' : item.value}</div>
                       <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 5 }}>{item.sub}</div>
@@ -405,15 +405,7 @@ export default function DashboardPage() {
                 </div>
 
                 {!connected && !loading && (
-                  <div className="hmrc-banner" style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 12, padding: '18px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <div style={{ fontWeight: 700, fontSize: 14, color: '#0A2E1E', marginBottom: 4 }}>Connect HMRC</div>
-                      <div style={{ fontSize: 13, color: '#6B7280' }}>Link your HMRC account to enable MTD submissions and real-time compliance checking.</div>
-                    </div>
-                    <a href="/api/auth/hmrc" style={{ padding: '10px 22px', background: '#01D98D', color: '#0A2E1E', borderRadius: 9, fontWeight: 700, fontSize: 13, textDecoration: 'none', flexShrink: 0, marginLeft: 20 }}>
-                      Connect now →
-                    </a>
-                  </div>
+                  <div className="hmrc-banner" style={{ display: 'none' }} />
                 )}
               </>
             )}
