@@ -241,9 +241,8 @@ export default function DashboardPage() {
           * { box-sizing: border-box; }
           .dash-topbar { display: flex; }
           .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
-          .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 14px; }
-          .quarter-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 18px; }
-          .dash-content { flex: 1; padding: 12px 28px 16px; overflow-y: auto; }
+          .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 14px; }          .quarter-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 18px; }
+          .dash-content { flex: 1; padding: 12px 28px 0; overflow-y: auto; }
           @media (max-width: 767px) {
             .dash-topbar { display: none !important; }
             .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
