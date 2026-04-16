@@ -323,6 +323,47 @@ export default function DashboardPage() {
               </div>
             )}
 
+            {/* Onboarding panel — only shows when 0 transactions and not connected */}
+            {!loading && totalTx === 0 && (
+              <div style={{ background: '#fff', border: '0.5px solid #E5E7EB', borderRadius: 12, padding: '18px 20px', marginBottom: 20 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <div>
+                    <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 14, color: '#0A2E1E', marginBottom: 2 }}>
+                      Get started — {[connected, totalTx > 0].filter(Boolean).length} of 2 complete
+                    </div>
+                    <div style={{ fontSize: 11, color: '#9CA3AF' }}>Complete these steps to unlock your full compliance picture</div>
+                  </div>
+                  <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 20, color: connected ? '#01D98D' : '#E5E7EB' }}>
+                    {connected ? '50%' : '0%'}
+                  </div>
+                </div>
+                <div style={{ height: 5, background: '#E5E7EB', borderRadius: 3, overflow: 'hidden', marginBottom: 14 }}>
+                  <div style={{ height: '100%', width: connected ? '50%' : '0%', background: '#01D98D', borderRadius: 3, transition: 'width 0.5s ease' }} />
+                </div>
+                {[
+                  { num: 1, title: 'Connect your HMRC account', desc: 'Required for MTD submissions and compliance tracking', done: connected, href: '/api/auth/hmrc', action: 'Connect →' },
+                  { num: 2, title: 'Add your first transaction', desc: 'Log income or an expense to start tracking', done: totalTx > 0, action: 'Add →', onClick: () => setShowAddModal(true) },
+                  { num: 3, title: 'Review your compliance score', desc: 'Check VIGIL to see your deadlines and penalty risk', done: false, href: '/dashboard/vigil', action: 'View →' },
+                  { num: 4, title: 'Ask LUMEN a question', desc: 'Your AI tax advisor is ready — try it now', done: false, href: '/dashboard/lumen', action: 'Ask →' },
+                ].map((step, i) => (
+                  <div key={step.num} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 10, marginBottom: i < 3 ? 6 : 0, background: step.done ? '#F0FDF8' : '#F9FAFB', border: `1px solid ${step.done ? '#BBF7E4' : '#E5E7EB'}` }}>
+                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: step.done ? '#01D98D' : '#E5E7EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 12, color: step.done ? '#0A2E1E' : '#9CA3AF', flexShrink: 0 }}>
+                      {step.done ? '✓' : step.num}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: step.done ? '#065F46' : '#0A2E1E', marginBottom: 1 }}>{step.title}</div>
+                      <div style={{ fontSize: 10, color: '#9CA3AF' }}>{step.desc}</div>
+                    </div>
+                    {!step.done && (
+                      step.onClick
+                        ? <button onClick={step.onClick} style={{ fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 7, border: 'none', background: '#01D98D', color: '#0A2E1E', cursor: 'pointer', flexShrink: 0, fontFamily: "'DM Sans', sans-serif" }}>{step.action}</button>
+                        : <a href={step.href} style={{ fontSize: 11, fontWeight: 700, padding: '5px 12px', borderRadius: 7, background: '#01D98D', color: '#0A2E1E', textDecoration: 'none', flexShrink: 0 }}>{step.action}</a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
             <div className="stat-grid">
               {[
                 { label: 'Net profit', value: fmt(netProfit), sub: `${currentTaxYear} tax year`, color: '#0A2E1E' },
