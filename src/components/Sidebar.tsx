@@ -54,6 +54,8 @@ export default function Sidebar({ active, userName = 'You', plan = 'SOLO', netPr
 
   const sidebarContent = (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+
+      {/* Balance panel */}
       <div style={{ padding: '14px 16px', borderBottom: `1px solid ${s.divider}` }}>
         <div style={{ fontSize: 8, textTransform: 'uppercase', letterSpacing: '0.6px', color: s.balLabel, marginBottom: 3, fontFamily: "'DM Sans', sans-serif" }}>Net profit YTD</div>
         <div style={{ fontSize: 24, fontWeight: 800, color: s.balValue, marginBottom: 8, fontFamily: "'Montserrat', sans-serif", lineHeight: 1 }}>{fmt(netProfit)}</div>
@@ -70,6 +72,8 @@ export default function Sidebar({ active, userName = 'You', plan = 'SOLO', netPr
           ))}
         </div>
       </div>
+
+      {/* Navigation */}
       <div style={{ flex: 1, paddingTop: 8, overflowY: 'auto' }}>
         {sectionLabel('Modules')}
         {navItem('Dashboard', '/dashboard')}
@@ -78,14 +82,14 @@ export default function Sidebar({ active, userName = 'You', plan = 'SOLO', netPr
         {navItem('IMPENSUM', '/dashboard/impensum')}
         {navItem('LUMEN', '/dashboard/lumen')}
         {navItem('QUARTUS', '/dashboard/quartus')}
+
         <div style={{ marginTop: 8 }}>{sectionLabel('Tools')}</div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 16px' }}>
-          <div style={{ width: 5, height: 5, borderRadius: '50%', background: s.inactiveDot, opacity: 0.4, flexShrink: 0 }} />
-          <span style={{ fontSize: 12, fontWeight: 500, color: s.soonColor, fontFamily: "'DM Sans', sans-serif" }}>FACTURA</span>
-          <span style={{ marginLeft: 'auto', fontSize: 9, color: s.soonColor }}>soon</span>
-        </div>
+        {navItem('FACTURA', '/dashboard/factura')}
+        {navItem('AGENT', '/dashboard/agent')}
         {navItem('Profile', '/dashboard/profile')}
       </div>
+
+      {/* User */}
       <div style={{ padding: '12px 16px', borderTop: `1px solid ${s.divider}`, display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ width: 30, height: 30, borderRadius: '50%', background: s.avatarBackground, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: s.avatarColor, flexShrink: 0 }}>
           {userName.charAt(0).toUpperCase()}
