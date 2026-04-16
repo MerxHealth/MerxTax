@@ -184,7 +184,7 @@ export default function GuidePage() {
       {/* NAV — white bar, real logo */}
       <nav style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '0 32px', height: 80, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
         <div onClick={() => window.location.href = '/'} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-          <img src="/logo.png" alt="MerxTax" style={{ height: '160px', width: 'auto' }} />
+          <img src="/logo.png" alt="MerxTax" style={{ height: '44px', width: 'auto' }} />
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <button onClick={() => window.location.href = '/login'} style={{ fontSize: 13, color: '#6B7280', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 500, fontFamily: "'DM Sans', sans-serif" }}>
@@ -395,7 +395,7 @@ export default function GuidePage() {
       {/* FOOTER */}
       <footer style={{ background: '#fff', borderTop: '1px solid #E5E7EB', padding: '20px 24px', textAlign: 'center' }}>
         <div style={{ marginBottom: 10 }}>
-          <img src="/logo.png" alt="MerxTax" style={{ height: '100px', width: 'auto', opacity: 0.6 }} />
+          <img src="/logo.png" alt="MerxTax" style={{ height: '36px', width: 'auto', opacity: 0.6 }} />
         </div>
         <div style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 6 }}>
           This guide is for informational purposes only and does not constitute tax advice. Always verify current rules with HMRC or a qualified tax adviser.
