@@ -398,13 +398,14 @@ export default function DashboardPage() {
                   })}
                 </div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#0A2E1E', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>Quick add</div>
-                <div className="quickadd-grid">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
                   {[
-                    { name: 'Upload receipt', desc: 'Scan with AI' },
-                    { name: 'Voice entry', desc: 'Speak to log' },
-                    { name: 'Log mileage', desc: 'GPS tracker' },
+                    { name: 'Upload receipt', desc: 'Scan with AI', onClick: () => { window.location.href = '/dashboard/impensum'; }, highlight: false },
+                    { name: 'Voice entry', desc: 'Speak to log', onClick: () => { window.location.href = '/dashboard/impensum'; }, highlight: false },
+                    { name: 'Log mileage', desc: 'GPS tracker', onClick: () => { window.location.href = '/dashboard/impensum'; }, highlight: false },
+                    { name: 'Manual entry', desc: 'Type it in', onClick: () => setShowAddModal(true), highlight: true },
                   ].map(item => (
-                    <div key={item.name} onClick={() => { window.location.href = '/dashboard/impensum'; }} style={{ background: '#F9FAFB', border: '0.5px solid #E5E7EB', borderRadius: 9, padding: '10px 12px', cursor: 'pointer' }}>
+                    <div key={item.name} onClick={item.onClick} style={{ background: item.highlight ? '#F0FDF8' : '#F9FAFB', border: `${item.highlight ? '1.5px solid #01D98D' : '0.5px solid #E5E7EB'}`, borderRadius: 9, padding: '10px 12px', cursor: 'pointer' }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: '#0A2E1E' }}>{item.name}</div>
                       <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{item.desc}</div>
                     </div>
