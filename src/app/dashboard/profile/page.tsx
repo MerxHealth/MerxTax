@@ -6,7 +6,7 @@ import { ThemeProvider } from '@/lib/ThemeContext';
 import Sidebar from '@/components/Sidebar';
 
 const THEMES = [
-  { id: 'bright', label: 'Bright', desc: 'Default — white content, green-teal sidebar', sidebar: 'linear-gradient(175deg, #01D98D 0%, #0EBDCA 100%)', bg: '#F8FAFB', text: '#0A2E1E' },
+  { id: 'bright', label: 'Bright', desc: 'Default — white content, green-teal sidebar', sidebar: 'linear-gradient(175deg, #01D98D 0%, #0EBDCA 100%)', bg: '#EEF1F4', text: '#0A2E1E' },
   { id: 'forest', label: 'Forest', desc: 'Dark text on green-teal sidebar', sidebar: 'linear-gradient(175deg, #01D98D 0%, #0EBDCA 100%)', bg: '#F0FDF8', text: '#1C1C1E' },
   { id: 'dark', label: 'Dark', desc: 'Forest sidebar with green accents', sidebar: 'linear-gradient(175deg, #0A2E1E 0%, #1C1C1E 100%)', bg: '#1C1C1E', text: '#01D98D' },
 ];

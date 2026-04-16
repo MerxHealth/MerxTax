@@ -142,7 +142,7 @@ export default function AgentPage() {
 
   return (
     <ThemeProvider>
-      <div style={{ display: 'flex', minHeight: '100vh', background: '#F8FAFB', fontFamily: "'DM Sans', sans-serif" }}>
+      <div style={{ display: 'flex', minHeight: '100vh', background: '#EEF1F4', fontFamily: "'DM Sans', sans-serif" }}>
         <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Montserrat:wght@700;800;900&display=swap'); * { box-sizing: border-box; }`}</style>
 
         <Sidebar active="AGENT" userName={userName} plan={plan} netProfit={netProfit} />

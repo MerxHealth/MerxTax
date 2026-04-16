@@ -135,7 +135,7 @@ USER FINANCIAL CONTEXT (live data):
 
   return (
     <ThemeProvider>
-      <div style={{ display: 'flex', minHeight: '100vh', background: '#FAFAFA', fontFamily: "'DM Sans', sans-serif", color: '#1C1C1E' }}>
+      <div style={{ display: 'flex', minHeight: '100vh', background: '#EEF1F4', fontFamily: "'DM Sans', sans-serif", color: '#1C1C1E' }}>
         <style>{`
           @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Montserrat:wght@600;700;800&display=swap');
           * { box-sizing: border-box; }

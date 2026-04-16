@@ -308,7 +308,7 @@ export default function ImpensumPage() {
 
   return (
     <ThemeProvider>
-      <div style={{ display: 'flex', minHeight: '100vh', background: '#FAFAFA', fontFamily: "'DM Sans', sans-serif", color: '#1C1C1E' }}>
+      <div style={{ display: 'flex', minHeight: '100vh', background: '#EEF1F4', fontFamily: "'DM Sans', sans-serif", color: '#1C1C1E' }}>
         <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Montserrat:wght@600;700;800&display=swap'); * { box-sizing: border-box; } .uz:hover { border-color: #01D98D !important; background: #F0FDF8 !important; } @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.6;transform:scale(1.15)} } @keyframes ripple { 0%{transform:scale(1);opacity:0.8} 100%{transform:scale(2.5);opacity:0} }`}</style>
 
         <Sidebar active="IMPENSUM" userName={userName} plan={plan} netProfit={sidebarNetProfit} income={sidebarIncome} expenses={sidebarExpenses} taxDue={sidebarTaxDue} />
