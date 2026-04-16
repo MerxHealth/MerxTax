@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { ThemeProvider } from '@/lib/ThemeContext';
+import Sidebar from '@/components/Sidebar';
 
 const THEMES = [
   { id: 'bright', label: 'Bright', desc: 'Default — white content, green-teal sidebar', sidebar: 'linear-gradient(175deg, #01D98D 0%, #0EBDCA 100%)', bg: '#F8FAFB', text: '#0A2E1E' },
@@ -32,6 +34,10 @@ export default function ProfilePage() {
   const [passwordError, setPasswordError] = useState('');
   const [themeMsg, setThemeMsg] = useState('');
   const [logoMsg, setLogoMsg] = useState('');
+  const [sidebarNetProfit, setSidebarNetProfit] = useState(0);
+  const [sidebarIncome, setSidebarIncome] = useState(0);
+  const [sidebarExpenses, setSidebarExpenses] = useState(0);
+  const [sidebarTaxDue, setSidebarTaxDue] = useState(0);
 
   useEffect(() => {
     async function load() {
@@ -48,6 +54,18 @@ export default function ProfilePage() {
 
       const { data: biz } = await supabase.from('businesses').select('name').eq('user_id', user.id).single();
       setBusinessName((!biz?.name || biz.name.includes('@')) ? '' : biz.name);
+
+      const today = new Date();
+      const y = today.getFullYear(), m = today.getMonth() + 1, d = today.getDate();
+      const after = m > 4 || (m === 4 && d >= 6);
+      const taxYear = after ? `${y}-${String(y + 1).slice(2)}` : `${y - 1}-${String(y).slice(2)}`;
+      const { data: txData } = await supabase.from('transactions').select('type, amount_gross, status').eq('tax_year', taxYear).eq('status', 'CONFIRMED');
+      const inc = (txData || []).filter((t: any) => t.type === 'INCOME').reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
+      const exp = (txData || []).filter((t: any) => t.type === 'EXPENSE').reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
+      const net = inc - exp;
+      setSidebarIncome(inc); setSidebarExpenses(exp); setSidebarNetProfit(net);
+      setSidebarTaxDue(Math.max(0, (Math.min(net, 50270) - 12570) * 0.2 + Math.max(0, net - 50270) * 0.4));
+
       setLoading(false);
     }
     load();
@@ -139,19 +157,15 @@ export default function ProfilePage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', background: '#fff', fontFamily: "'DM Sans', sans-serif", color: '#1C1C1E' }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Montserrat:wght@600;700;800&display=swap'); * { box-sizing: border-box; }`}</style>
+    <ThemeProvider>
+      <div style={{ display: 'flex', minHeight: '100vh', background: '#fff', fontFamily: "'DM Sans', sans-serif", color: '#1C1C1E' }}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Montserrat:wght@600;700;800&display=swap'); * { box-sizing: border-box; }`}</style>
 
-      <header style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '0 24px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 100 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button onClick={() => { window.location.href = '/dashboard'; }} style={{ fontSize: 13, color: '#6B7280', cursor: 'pointer', background: 'none', border: 'none', fontFamily: "'DM Sans', sans-serif" }}>← Back to Dashboard</button>
-          <div style={{ width: 1, height: 20, background: '#E5E7EB' }} />
-          <span style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E' }}>My Profile</span>
-        </div>
-        <span style={{ fontSize: 12, fontWeight: 700, background: planColour, color: planText, padding: '4px 12px', borderRadius: 20 }}>{plan} PLAN</span>
-      </header>
+        <Sidebar active="Profile" userName={fullName} plan={plan.toUpperCase() || 'SOLO'} netProfit={sidebarNetProfit} income={sidebarIncome} expenses={sidebarExpenses} taxDue={sidebarTaxDue} />
 
-      <div style={{ maxWidth: 760, margin: '0 auto', padding: '40px 24px' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            <div style={{ maxWidth: 760, margin: '0 auto', padding: '40px 24px' }}>
         <div style={{ marginBottom: 32 }}>
           <h1 style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 26, color: '#0A2E1E', margin: 0, marginBottom: 6 }}>Account Settings</h1>
           <p style={{ fontSize: 14, color: '#6B7280', margin: 0 }}>Manage your personal details and account preferences.</p>
@@ -290,7 +304,10 @@ export default function ProfilePage() {
             </button>
           </div>
         </div>
+        </div>
+        </div>
+        </div>
       </div>
-    </div>
+    </ThemeProvider>
   );
 }

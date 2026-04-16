@@ -55,26 +55,14 @@ function printInvoice(invoice: Invoice, businessName: string, logoUrl: string, i
     @media print{body{padding:20px;}}
   </style></head><body>
   <div class="header">
-    <div>
-      ${logoHtml}
-      <div style="font-size:13px;color:#6B7280;margin-top:8px;">${businessName}</div>
-    </div>
+    <div>${logoHtml}<div style="font-size:13px;color:#6B7280;margin-top:8px;">${businessName}</div></div>
     <div class="inv-number"><strong>${invoice.invoice_number}</strong>INVOICE</div>
   </div>
   <div class="parties">
-    <div>
-      <div class="label">Bill to</div>
-      <div class="value"><strong>${invoice.client_name}</strong><br>${invoice.client_email || ''}<br>${(invoice.client_address || '').replace(/\n/g, '<br>')}</div>
-    </div>
-    <div>
-      <div class="label">Details</div>
-      <div class="value">Issue date: ${invoice.issue_date}<br>Due date: ${invoice.due_date || '—'}<br><br><span class="status-badge">${invoice.status.toUpperCase()}</span></div>
-    </div>
+    <div><div class="label">Bill to</div><div class="value"><strong>${invoice.client_name}</strong><br>${invoice.client_email || ''}<br>${(invoice.client_address || '').replace(/\n/g, '<br>')}</div></div>
+    <div><div class="label">Details</div><div class="value">Issue date: ${invoice.issue_date}<br>Due date: ${invoice.due_date || '—'}<br><br><span class="status-badge">${invoice.status.toUpperCase()}</span></div></div>
   </div>
-  <table>
-    <thead><tr><th>Description</th><th>Qty</th><th>Unit price</th><th>Total</th></tr></thead>
-    <tbody>${itemRows}</tbody>
-  </table>
+  <table><thead><tr><th>Description</th><th>Qty</th><th>Unit price</th><th>Total</th></tr></thead><tbody>${itemRows}</tbody></table>
   <div class="totals">
     <div class="total-row"><span>Subtotal</span><span>${fmt(invoice.subtotal)}</span></div>
     ${invoice.tax_amount > 0 ? `<div class="total-row"><span>VAT</span><span>${fmt(invoice.tax_amount)}</span></div>` : ''}
@@ -103,14 +91,12 @@ export default function FacturaPage() {
   const [userName, setUserName] = useState('');
   const [plan, setPlan] = useState('SOLO');
   const [netProfit, setNetProfit] = useState(0);
+  const [income, setIncome] = useState(0);
+  const [expenses, setExpenses] = useState(0);
+  const [taxDue, setTaxDue] = useState(0);
   const [msg, setMsg] = useState('');
-
-  // Save-as-template dialog
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [pendingSaveAsDraft, setPendingSaveAsDraft] = useState(false);
-  const [templateName, setTemplateName] = useState('');
-
-  // Form state
   const [clientName, setClientName] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [clientAddress, setClientAddress] = useState('');
@@ -131,21 +117,16 @@ export default function FacturaPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) { window.location.href = '/login'; return; }
     setUserId(user.id);
-
     const { data: profile } = await supabase.from('profiles').select('full_name, plan, logo_url').eq('id', user.id).single();
     setUserName(profile?.full_name || '');
     setPlan(profile?.plan?.toUpperCase() || 'SOLO');
     setLogoUrl(profile?.logo_url || '');
-
     const { data: biz } = await supabase.from('businesses').select('name').eq('user_id', user.id).single();
     setBusinessName(biz?.name || '');
-
     const { data: inv } = await supabase.from('invoices').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
     setInvoices(inv || []);
-
     const { data: tmpl } = await supabase.from('client_templates').select('*').eq('user_id', user.id).order('name');
     setTemplates(tmpl || []);
-
     const today = new Date();
     const y = today.getFullYear(), m = today.getMonth() + 1, d = today.getDate();
     const after = m > 4 || (m === 4 && d >= 6);
@@ -153,7 +134,9 @@ export default function FacturaPage() {
     const { data: txData } = await supabase.from('transactions').select('type, amount_gross, status').eq('tax_year', taxYear).eq('status', 'CONFIRMED');
     const inc = (txData || []).filter((t: any) => t.type === 'INCOME').reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
     const exp = (txData || []).filter((t: any) => t.type === 'EXPENSE').reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
-    setNetProfit(inc - exp);
+    const net = inc - exp;
+    setIncome(inc); setExpenses(exp); setNetProfit(net);
+    setTaxDue(Math.max(0, (Math.min(net, 50270) - 12570) * 0.2 + Math.max(0, net - 50270) * 0.4));
     setLoading(false);
   }, []);
 
@@ -180,53 +163,30 @@ export default function FacturaPage() {
     ? businessName.trim().split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
     : userName.trim().split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'MT';
 
-  // Called when user clicks Save — shows template dialog first
   const handleSaveClick = (asDraft: boolean) => {
     if (!clientName.trim()) { setMsg('Client name is required.'); return; }
     if (items.some(i => !i.description.trim())) { setMsg('All line items need a description.'); return; }
     setPendingSaveAsDraft(asDraft);
-    setTemplateName(clientName.trim());
     setShowTemplateDialog(true);
   };
 
-  // Called after template dialog decision
   const handleSave = async (saveTemplate: boolean) => {
     setShowTemplateDialog(false);
     setSaving(true); setMsg('');
-
     if (saveTemplate && clientName.trim()) {
       const exists = templates.find(t => t.name.toLowerCase() === clientName.trim().toLowerCase());
-      if (!exists) {
-        await supabase.from('client_templates').insert({ user_id: userId, name: clientName.trim(), email: clientEmail.trim(), address: clientAddress.trim() });
-      }
+      if (!exists) await supabase.from('client_templates').insert({ user_id: userId, name: clientName.trim(), email: clientEmail.trim(), address: clientAddress.trim() });
     }
-
     const invNumber = nextInvoiceNumber();
     const { data: inv, error } = await supabase.from('invoices').insert({
-      user_id: userId,
-      invoice_number: invNumber,
-      client_name: clientName.trim(),
-      client_email: clientEmail.trim(),
-      client_address: clientAddress.trim(),
-      issue_date: issueDate,
-      due_date: dueDate || null,
-      subtotal,
-      tax_amount: taxAmount,
-      total,
-      status: pendingSaveAsDraft ? 'draft' : 'sent',
-      notes: notes.trim(),
+      user_id: userId, invoice_number: invNumber, client_name: clientName.trim(),
+      client_email: clientEmail.trim(), client_address: clientAddress.trim(),
+      issue_date: issueDate, due_date: dueDate || null, subtotal, tax_amount: taxAmount, total,
+      status: pendingSaveAsDraft ? 'draft' : 'sent', notes: notes.trim(),
     }).select().single();
-
     if (error || !inv) { setMsg('Failed to save invoice.'); setSaving(false); return; }
-
-    await supabase.from('invoice_items').insert(
-      items.map(i => ({ invoice_id: inv.id, description: i.description, quantity: i.quantity, unit_price: i.unit_price, total: i.total }))
-    );
-
-    await loadData();
-    setView('list');
-    resetForm();
-    setSaving(false);
+    await supabase.from('invoice_items').insert(items.map(i => ({ invoice_id: inv.id, description: i.description, quantity: i.quantity, unit_price: i.unit_price, total: i.total })));
+    await loadData(); setView('list'); resetForm(); setSaving(false);
   };
 
   const handleMarkPaid = async (invoice: Invoice) => {
@@ -245,28 +205,12 @@ export default function FacturaPage() {
     setSelected(prev => prev ? { ...prev, status: 'paid' } : null);
   };
 
-  const loadTemplate = (t: ClientTemplate) => {
-    setClientName(t.name);
-    setClientEmail(t.email || '');
-    setClientAddress(t.address || '');
-  };
-
-  const deleteTemplate = async (id: string) => {
-    await supabase.from('client_templates').delete().eq('id', id);
-    setTemplates(templates.filter(t => t.id !== id));
-  };
-
-  const resetForm = () => {
-    setClientName(''); setClientEmail(''); setClientAddress('');
-    setIssueDate(new Date().toISOString().split('T')[0]); setDueDate('');
-    setNotes(''); setVatRate(0);
-    setItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]);
-  };
-
+  const loadTemplate = (t: ClientTemplate) => { setClientName(t.name); setClientEmail(t.email || ''); setClientAddress(t.address || ''); };
+  const deleteTemplate = async (id: string) => { await supabase.from('client_templates').delete().eq('id', id); setTemplates(templates.filter(t => t.id !== id)); };
+  const resetForm = () => { setClientName(''); setClientEmail(''); setClientAddress(''); setIssueDate(new Date().toISOString().split('T')[0]); setDueDate(''); setNotes(''); setVatRate(0); setItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]); };
   const openDetail = async (inv: Invoice) => {
     const { data: invItems } = await supabase.from('invoice_items').select('*').eq('invoice_id', inv.id);
-    setSelected({ ...inv, items: invItems || [] });
-    setView('detail');
+    setSelected({ ...inv, items: invItems || [] }); setView('detail');
   };
 
   const inputStyle = { width: '100%', padding: '10px 14px', fontSize: 14, border: '1px solid #E5E7EB', borderRadius: 10, outline: 'none', fontFamily: "'DM Sans', sans-serif", color: '#1C1C1E', background: '#fff' };
@@ -277,50 +221,47 @@ export default function FacturaPage() {
       <div style={{ display: 'flex', minHeight: '100vh', background: '#F8FAFB', fontFamily: "'DM Sans', sans-serif" }}>
         <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Montserrat:wght@600;700;800&display=swap'); * { box-sizing: border-box; }`}</style>
 
-        {/* Save-as-template dialog */}
+        {/* Template dialog */}
         {showTemplateDialog && (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-            <div style={{ background: '#fff', borderRadius: 20, padding: '32px', maxWidth: 440, width: '100%', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+            <div style={{ background: '#fff', borderRadius: 20, padding: '32px', maxWidth: 440, width: '100%' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 20 }}>
                 <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#F0FDF8', border: '1px solid #BBF7E4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 18 }}>💾</div>
                 <div>
                   <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 16, color: '#0A2E1E', marginBottom: 6 }}>Save client for next time?</div>
-                  <div style={{ fontSize: 13, color: '#6B7280', lineHeight: 1.6 }}>
-                    Save <strong>{clientName}</strong> as a client template so you can pre-fill their details instantly on future invoices — perfect for regular clients.
-                  </div>
+                  <div style={{ fontSize: 13, color: '#6B7280', lineHeight: 1.6 }}>Save <strong>{clientName}</strong> as a client template to pre-fill their details on future invoices.</div>
                 </div>
               </div>
-              <div style={{ background: '#F0FDF8', border: '1px solid #BBF7E4', borderRadius: 10, padding: '10px 14px', fontSize: 12, color: '#065F46', marginBottom: 24, display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                <span style={{ flexShrink: 0 }}>ℹ️</span>
-                <span>Templates save the client name, email and address. You can manage them from the FACTURA invoice form.</span>
-              </div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button onClick={() => handleSave(true)} style={{ flex: 1, fontSize: 14, padding: '11px', borderRadius: 10, background: '#01D98D', color: '#0A2E1E', border: 'none', fontWeight: 700, cursor: 'pointer' }}>
-                  Yes, save template
-                </button>
-                <button onClick={() => handleSave(false)} style={{ flex: 1, fontSize: 14, padding: '11px', borderRadius: 10, background: '#F3F4F6', color: '#6B7280', border: 'none', fontWeight: 600, cursor: 'pointer' }}>
-                  No, just save invoice
-                </button>
+                <button onClick={() => handleSave(true)} style={{ flex: 1, fontSize: 14, padding: '11px', borderRadius: 10, background: '#01D98D', color: '#0A2E1E', border: 'none', fontWeight: 700, cursor: 'pointer' }}>Yes, save template</button>
+                <button onClick={() => handleSave(false)} style={{ flex: 1, fontSize: 14, padding: '11px', borderRadius: 10, background: '#F3F4F6', color: '#6B7280', border: 'none', fontWeight: 600, cursor: 'pointer' }}>No, just save invoice</button>
               </div>
             </div>
           </div>
         )}
 
-        <Sidebar active="FACTURA" userName={userName} plan={plan} netProfit={netProfit} />
+        <Sidebar active="FACTURA" userName={userName} plan={plan} netProfit={netProfit} income={income} expenses={expenses} taxDue={taxDue} />
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
+
+          {/* Top bar */}
           {!isMobile && (
             <div style={{ background: '#fff', borderBottom: '0.5px solid #E5E7EB', padding: '0 28px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-              <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 18, color: '#0A2E1E' }}>FACTURA</div>
+              <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E' }}>
+                FACTURA <span style={{ color: '#01D98D' }}>|</span> {view === 'create' ? 'NEW INVOICE' : view === 'detail' ? 'INVOICE' : 'INVOICES'}
+              </div>
               {view === 'list' && <button onClick={() => { resetForm(); setView('create'); }} style={{ fontSize: 13, padding: '8px 18px', borderRadius: 9, background: '#01D98D', color: '#0A2E1E', border: 'none', fontWeight: 700, cursor: 'pointer' }}>+ New invoice</button>}
               {view !== 'list' && <button onClick={() => setView('list')} style={{ fontSize: 13, padding: '8px 18px', borderRadius: 9, background: '#F3F4F6', color: '#0A2E1E', border: 'none', fontWeight: 600, cursor: 'pointer' }}>← Back</button>}
             </div>
           )}
 
           <div style={{ flex: 1, padding: isMobile ? '12px 14px 24px' : '24px 28px', overflowY: 'auto' }}>
+
             {isMobile && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 16, color: '#0A2E1E' }}>{view === 'list' ? 'FACTURA' : view === 'create' ? 'New Invoice' : 'Invoice'}</div>
+                <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 16, color: '#0A2E1E' }}>
+                  FACTURA <span style={{ color: '#01D98D' }}>|</span> {view === 'create' ? 'New Invoice' : view === 'detail' ? 'Invoice' : 'Invoices'}
+                </div>
                 {view === 'list' ? <button onClick={() => { resetForm(); setView('create'); }} style={{ fontSize: 12, padding: '7px 14px', borderRadius: 9, background: '#01D98D', color: '#0A2E1E', border: 'none', fontWeight: 700, cursor: 'pointer' }}>+ New</button>
                   : <button onClick={() => setView('list')} style={{ fontSize: 12, padding: '7px 14px', borderRadius: 9, background: '#F3F4F6', color: '#0A2E1E', border: 'none', fontWeight: 600, cursor: 'pointer' }}>← Back</button>}
               </div>
@@ -362,8 +303,6 @@ export default function FacturaPage() {
             {view === 'create' && (
               <div style={{ maxWidth: 720, margin: '0 auto' }}>
                 {msg && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '10px 16px', fontSize: 13, color: '#991B1B', marginBottom: 16 }}>{msg}</div>}
-
-                {/* Client details */}
                 <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 16, padding: '24px', marginBottom: 16 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
                     <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E' }}>Client Details</div>
@@ -378,16 +317,9 @@ export default function FacturaPage() {
                       </div>
                     )}
                   </div>
-
                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 16 }}>
-                    <div>
-                      <label style={labelStyle}>Client Name *</label>
-                      <input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Smith Ltd" style={inputStyle} />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Client Email</label>
-                      <input value={clientEmail} onChange={e => setClientEmail(e.target.value)} placeholder="accounts@smithltd.com" style={inputStyle} />
-                    </div>
+                    <div><label style={labelStyle}>Client Name *</label><input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Smith Ltd" style={inputStyle} /></div>
+                    <div><label style={labelStyle}>Client Email</label><input value={clientEmail} onChange={e => setClientEmail(e.target.value)} placeholder="accounts@smithltd.com" style={inputStyle} /></div>
                   </div>
                   <div style={{ marginBottom: 16 }}>
                     <label style={labelStyle}>Client Address</label>
@@ -397,8 +329,6 @@ export default function FacturaPage() {
                     <div><label style={labelStyle}>Issue Date</label><input type="date" value={issueDate} onChange={e => setIssueDate(e.target.value)} style={inputStyle} /></div>
                     <div><label style={labelStyle}>Due Date</label><input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} style={inputStyle} /></div>
                   </div>
-
-                  {/* Saved templates management */}
                   {templates.length > 0 && (
                     <div style={{ marginTop: 20, paddingTop: 16, borderTop: '1px solid #F3F4F6' }}>
                       <div style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 10 }}>Saved Clients</div>
@@ -413,8 +343,6 @@ export default function FacturaPage() {
                     </div>
                   )}
                 </div>
-
-                {/* Line items */}
                 <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 16, padding: '24px', marginBottom: 16 }}>
                   <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E', marginBottom: 20 }}>Line Items</div>
                   {items.map((item, idx) => (
@@ -439,13 +367,10 @@ export default function FacturaPage() {
                     </div>
                   </div>
                 </div>
-
-                {/* Notes */}
                 <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 16, padding: '24px', marginBottom: 24 }}>
                   <label style={labelStyle}>Notes (optional)</label>
                   <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Payment terms, bank details, thank you message..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
                 </div>
-
                 <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                   <button onClick={() => handleSaveClick(false)} disabled={saving} style={{ flex: 1, fontSize: 14, padding: '12px 24px', borderRadius: 10, background: saving ? '#a3f0d4' : '#01D98D', color: '#0A2E1E', border: 'none', fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer' }}>
                     {saving ? 'Saving...' : 'Save & Mark as Sent'}
@@ -475,7 +400,6 @@ export default function FacturaPage() {
                     )}
                   </div>
                 </div>
-
                 <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 16, padding: '24px', marginBottom: 16 }}>
                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 24, marginBottom: 24 }}>
                     <div>
@@ -494,7 +418,7 @@ export default function FacturaPage() {
                     <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 20 }}>
                       <thead>
                         <tr style={{ borderBottom: '2px solid #E5E7EB' }}>
-                          {['Description', 'Qty', 'Unit Price', 'Total'].map(h => (
+                          {['Description','Qty','Unit Price','Total'].map(h => (
                             <th key={h} style={{ fontSize: 10, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5, padding: '8px 12px', textAlign: h === 'Description' ? 'left' : 'right' }}>{h}</th>
                           ))}
                         </tr>
