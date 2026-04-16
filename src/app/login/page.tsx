@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import Logo from '@/components/Logo';
 
 export default function LoginPage() {
   const supabase = createClient();
@@ -33,15 +32,6 @@ export default function LoginPage() {
         * { box-sizing: border-box; }
         input:focus { border-color: #01D98D !important; box-shadow: 0 0 0 3px rgba(1,217,141,0.12); }
       `}</style>
-
-      {/* Nav */}
-      <div style={{ background: '#fff', borderBottom: '0.5px solid #E5E7EB', padding: '0 32px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Logo height={56} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-          <a href="/pricing" style={{ fontSize: 13, fontWeight: 600, color: '#0A2E1E', textDecoration: 'none' }}>Pricing</a>
-          <a href="/signup" style={{ fontSize: 13, fontWeight: 700, padding: '8px 20px', borderRadius: 9, background: '#01D98D', color: '#0A2E1E', textDecoration: 'none' }}>Sign up</a>
-        </div>
-      </div>
 
       {/* Main */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>

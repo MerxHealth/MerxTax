@@ -45,10 +45,8 @@ export default function AdminPage() {
 
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user || user.email !== ADMIN_EMAIL) {
-      window.location.href = '/dashboard';
-      return;
-    }
+    if (!user) { window.location.href = '/login'; return; }
+    if (user.email !== ADMIN_EMAIL) { window.location.href = '/dashboard'; return; }
     setAuthorized(true);
 
     // Fetch all agent relationships
