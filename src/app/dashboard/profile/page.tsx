@@ -61,9 +61,13 @@ export default function ProfilePage() {
     const { error: profileError } = await supabase.from('profiles').update({ full_name: fullName.trim() }).eq('id', user.id);
     if (profileError) { setErrorMsg('Failed to save profile.'); setSaving(false); return; }
 
+    // Delete existing business row then insert fresh — avoids upsert constraint issue
+    await supabase.from('businesses').delete().eq('user_id', user.id);
     if (businessName.trim()) {
-      await supabase.from('businesses').upsert({ user_id: user.id, name: businessName.trim() }, { onConflict: 'user_id' });
+      const { error: bizError } = await supabase.from('businesses').insert({ user_id: user.id, name: businessName.trim() });
+      if (bizError) { setErrorMsg('Failed to save business name.'); setSaving(false); return; }
     }
+
     setSuccessMsg('Profile saved successfully.');
     setSaving(false);
   }
