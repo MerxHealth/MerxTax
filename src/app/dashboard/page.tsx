@@ -347,36 +347,42 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="main-grid">
-                  <div style={{ background: '#fff', border: '0.5px solid #E5E7EB', borderRadius: 12, padding: '18px 20px' }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#0A2E1E', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 14 }}>Quarter status — {currentTaxYear}</div>
-                    <div className="quarter-grid">
-                      {(['Q1','Q2','Q3','Q4'] as const).map(q => {
-                        const color = qColour(q);
-                        const label = qLabel(q);
-                        return (
-                          <div key={q} onClick={() => { window.location.href = '/dashboard/quartus'; }} style={{ background: '#F9FAFB', border: `0.5px solid ${label === 'Filed' ? '#BBF7E4' : '#E5E7EB'}`, borderRadius: 9, padding: '10px 10px 8px', cursor: 'pointer', textAlign: 'center' }}>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: '#0A2E1E', marginBottom: 2 }}>{q}</div>
-                            <div style={{ fontSize: 10, color, marginBottom: 8 }}>{label}</div>
-                            <div style={{ height: 3, background: '#E5E7EB', borderRadius: 2, overflow: 'hidden' }}>
-                              <div style={{ height: '100%', width: `${label === 'Filed' ? 100 : quarterReadiness[q] || 0}%`, background: color, borderRadius: 2 }} />
-                            </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    {/* Quick Add — separate card on top */}
+                    <div style={{ background: '#fff', border: '0.5px solid #E5E7EB', borderRadius: 12, padding: '16px 18px' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#0A2E1E', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>Quick add</div>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                        {[
+                          { name: 'Manual entry', desc: 'Type it in', onClick: () => setShowAddModal(true), highlight: true },
+                          { name: 'Upload receipt', desc: 'Scan with AI', onClick: () => { window.location.href = '/dashboard/impensum'; }, highlight: false },
+                          { name: 'Voice entry', desc: 'Speak to log', onClick: () => { window.location.href = '/dashboard/impensum'; }, highlight: false },
+                          { name: 'Log mileage', desc: 'GPS tracker', onClick: () => { window.location.href = '/dashboard/impensum'; }, highlight: false },
+                        ].map(item => (
+                          <div key={item.name} onClick={item.onClick} style={{ background: item.highlight ? '#F0FDF8' : '#F9FAFB', border: `${item.highlight ? '1.5px solid #01D98D' : '0.5px solid #E5E7EB'}`, borderRadius: 9, padding: '10px 12px', cursor: 'pointer' }}>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#0A2E1E' }}>{item.name}</div>
+                            <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{item.desc}</div>
                           </div>
-                        );
-                      })}
+                        ))}
+                      </div>
                     </div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#0A2E1E', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>Quick add</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-                      {[
-                        { name: 'Upload receipt', desc: 'Scan with AI', onClick: () => { window.location.href = '/dashboard/impensum'; }, highlight: false },
-                        { name: 'Voice entry', desc: 'Speak to log', onClick: () => { window.location.href = '/dashboard/impensum'; }, highlight: false },
-                        { name: 'Log mileage', desc: 'GPS tracker', onClick: () => { window.location.href = '/dashboard/impensum'; }, highlight: false },
-                        { name: 'Manual entry', desc: 'Type it in', onClick: () => setShowAddModal(true), highlight: true },
-                      ].map(item => (
-                        <div key={item.name} onClick={item.onClick} style={{ background: item.highlight ? '#F0FDF8' : '#F9FAFB', border: `${item.highlight ? '1.5px solid #01D98D' : '0.5px solid #E5E7EB'}`, borderRadius: 9, padding: '10px 12px', cursor: 'pointer' }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: '#0A2E1E' }}>{item.name}</div>
-                          <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{item.desc}</div>
-                        </div>
-                      ))}
+                    {/* Quarter Status — separate card below */}
+                    <div style={{ background: '#fff', border: '0.5px solid #E5E7EB', borderRadius: 12, padding: '16px 18px' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: '#0A2E1E', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Quarter status — {currentTaxYear}</div>
+                      <div className="quarter-grid">
+                        {(['Q1','Q2','Q3','Q4'] as const).map(q => {
+                          const color = qColour(q);
+                          const label = qLabel(q);
+                          return (
+                            <div key={q} onClick={() => { window.location.href = '/dashboard/quartus'; }} style={{ background: '#F9FAFB', border: `0.5px solid ${label === 'Filed' ? '#BBF7E4' : '#E5E7EB'}`, borderRadius: 9, padding: '10px 10px 8px', cursor: 'pointer', textAlign: 'center' }}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: '#0A2E1E', marginBottom: 2 }}>{q}</div>
+                              <div style={{ fontSize: 10, color, marginBottom: 8 }}>{label}</div>
+                              <div style={{ height: 3, background: '#E5E7EB', borderRadius: 2, overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: `${label === 'Filed' ? 100 : quarterReadiness[q] || 0}%`, background: color, borderRadius: 2 }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
 
