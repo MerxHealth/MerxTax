@@ -39,6 +39,131 @@ function getGreeting() {
   return 'Good evening';
 }
 
+const INCOME_CATEGORIES = ['Freelance / Consulting', 'Sales', 'Rental Income', 'Investment Income', 'Other Income'];
+const EXPENSE_CATEGORIES = ['Office & Supplies', 'Travel & Mileage', 'Software & Subscriptions', 'Marketing & Advertising', 'Professional Services', 'Equipment', 'Meals & Entertainment', 'Utilities', 'Other Expense'];
+
+function AddTransactionModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const supabase = createClient();
+  const [step, setStep] = useState<'choose' | 'manual'>('choose');
+  const [type, setType] = useState<'INCOME' | 'EXPENSE'>('INCOME');
+  const [description, setDescription] = useState('');
+  const [amount, setAmount] = useState('');
+  const [category, setCategory] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const categories = type === 'INCOME' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+
+  const handleSave = async () => {
+    if (!description.trim()) { setError('Please enter a description.'); return; }
+    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) { setError('Please enter a valid amount.'); return; }
+    if (!category) { setError('Please select a category.'); return; }
+    setSaving(true);
+    setError('');
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { window.location.href = '/login'; return; }
+    const txDate = new Date(date);
+    const quarter = getHMRCQuarter(txDate);
+    const taxYear = getTaxYear(txDate);
+    const { error: err } = await supabase.from('transactions').insert({
+      user_id: user.id,
+      type,
+      description: description.trim(),
+      amount_gross: Number(amount),
+      category,
+      date,
+      quarter,
+      tax_year: taxYear,
+      status: 'CONFIRMED',
+    });
+    setSaving(false);
+    if (err) { setError('Failed to save. Please try again.'); return; }
+    onSaved();
+    onClose();
+  };
+
+  const overlay: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 };
+  const modal: React.CSSProperties = { background: '#fff', borderRadius: 16, width: '100%', maxWidth: 480, padding: 28, fontFamily: "'DM Sans', sans-serif", position: 'relative' };
+  const label: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: '#0A2E1E', marginBottom: 5, display: 'block', textTransform: 'uppercase', letterSpacing: '0.04em' };
+  const input: React.CSSProperties = { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 14, fontFamily: "'DM Sans', sans-serif", outline: 'none', marginBottom: 14, boxSizing: 'border-box' };
+
+  if (step === 'choose') {
+    return (
+      <div style={overlay} onClick={onClose}>
+        <div style={modal} onClick={e => e.stopPropagation()}>
+          <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#9CA3AF' }}>✕</button>
+          <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 18, color: '#0A2E1E', marginBottom: 6 }}>Add Transaction</div>
+          <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 24 }}>How would you like to add it?</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div onClick={() => setStep('manual')} style={{ border: '1.5px solid #01D98D', borderRadius: 12, padding: '16px 20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: '#F0FDF8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>✏️</div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: '#0A2E1E' }}>Manual Entry</div>
+                <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>Type in the details yourself</div>
+              </div>
+            </div>
+            <div onClick={() => { onClose(); window.location.href = '/dashboard/impensum'; }} style={{ border: '1px solid #E5E7EB', borderRadius: 12, padding: '16px 20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: '#F9FAFB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>🤖</div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 14, color: '#0A2E1E' }}>Smart Entry — IMPENSUM</div>
+                <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>Scan a receipt, use voice, or GPS mileage</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={overlay} onClick={onClose}>
+      <div style={modal} onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#9CA3AF' }}>✕</button>
+        <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 18, color: '#0A2E1E', marginBottom: 20 }}>Manual Entry</div>
+
+        {/* Type toggle */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+          {(['INCOME', 'EXPENSE'] as const).map(t => (
+            <button key={t} onClick={() => { setType(t); setCategory(''); }} style={{ flex: 1, padding: '9px 0', borderRadius: 8, border: `1.5px solid ${type === t ? (t === 'INCOME' ? '#01D98D' : '#EF4444') : '#E5E7EB'}`, background: type === t ? (t === 'INCOME' ? '#F0FDF8' : '#FEF2F2') : '#fff', color: type === t ? (t === 'INCOME' ? '#065F46' : '#991B1B') : '#6B7280', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+              {t === 'INCOME' ? '↑ Income' : '↓ Expense'}
+            </button>
+          ))}
+        </div>
+
+        <label style={label}>Description</label>
+        <input style={input} placeholder="e.g. Invoice #001 — Client A" value={description} onChange={e => setDescription(e.target.value)} />
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div>
+            <label style={label}>Amount (£)</label>
+            <input style={input} type="number" placeholder="0.00" min="0" step="0.01" value={amount} onChange={e => setAmount(e.target.value)} />
+          </div>
+          <div>
+            <label style={label}>Date</label>
+            <input style={input} type="date" value={date} onChange={e => setDate(e.target.value)} />
+          </div>
+        </div>
+
+        <label style={label}>Category</label>
+        <select style={{ ...input, color: category ? '#0A2E1E' : '#9CA3AF' }} value={category} onChange={e => setCategory(e.target.value)}>
+          <option value="">Select category...</option>
+          {categories.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+
+        {error && <div style={{ fontSize: 12, color: '#EF4444', marginBottom: 12, marginTop: -8 }}>{error}</div>}
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+          <button onClick={() => setStep('choose')} style={{ flex: 1, padding: '11px 0', borderRadius: 9, border: '1px solid #E5E7EB', background: '#fff', color: '#6B7280', fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Back</button>
+          <button onClick={handleSave} disabled={saving} style={{ flex: 2, padding: '11px 0', borderRadius: 9, border: 'none', background: '#01D98D', color: '#0A2E1E', fontWeight: 700, fontSize: 14, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1, fontFamily: "'DM Sans', sans-serif" }}>
+            {saving ? 'Saving...' : 'Save Transaction'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const supabase = createClient();
   const today = new Date();
@@ -59,6 +184,7 @@ export default function DashboardPage() {
   const [quarterReadiness, setQuarterReadiness] = useState<Record<string, number>>({});
   const [connected, setConnected] = useState(false);
   const [nextAction, setNextAction] = useState('');
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const load = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -164,7 +290,7 @@ export default function DashboardPage() {
         `}</style>
 
         <Sidebar
-          active="Dashboard"
+          active="DASHBOARD"
           userName={userName}
           plan={plan}
           netProfit={netProfit}
@@ -176,14 +302,13 @@ export default function DashboardPage() {
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
 
-          {/* Top bar — desktop only, no logo (logo is in NavHeader) */}
           <div className="dash-topbar" style={{ background: '#fff', borderBottom: '0.5px solid #E5E7EB', padding: '0 28px', height: 64, alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
             <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E' }}>
               {loading ? '' : `${getGreeting()}${userName ? `, ${userName}` : ''}.`}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <span style={{ fontSize: 12, color: '#9CA3AF' }}>{today.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-              <button onClick={() => { window.location.href = '/dashboard/impensum'; }} style={{ fontSize: 13, padding: '8px 18px', borderRadius: 9, background: '#01D98D', color: '#0A2E1E', border: 'none', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+              <button onClick={() => setShowAddModal(true)} style={{ fontSize: 13, padding: '8px 18px', borderRadius: 9, background: '#01D98D', color: '#0A2E1E', border: 'none', fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                 + Add transaction
               </button>
             </div>
@@ -277,6 +402,13 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
+
+        {showAddModal && (
+          <AddTransactionModal
+            onClose={() => setShowAddModal(false)}
+            onSaved={() => load()}
+          />
+        )}
       </div>
     </ThemeProvider>
   );
