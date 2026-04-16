@@ -11,7 +11,7 @@ type ExtractedData = {
 };
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
 type VoiceMode = 'idle' | 'listening' | 'processing' | 'questioning' | 'confirming' | 'mileage';
-type CaptureTab = 'upload' | 'voice' | 'mileage';
+type CaptureTab = 'upload' | 'manual' | 'voice' | 'mileage';
 
 const HMRC_MILEAGE_RATE = 0.45;
 
@@ -83,6 +83,8 @@ export default function ImpensumPage() {
   const [sidebarTaxDue, setSidebarTaxDue] = useState(0);
 
   const [tab, setTab] = useState<CaptureTab>('upload');
+
+  // Upload tab
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [reading, setReading] = useState(false);
   const [readError, setReadError] = useState('');
@@ -92,6 +94,20 @@ export default function ImpensumPage() {
   const [saveError, setSaveError] = useState('');
   const [txType, setTxType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE');
   const [form, setForm] = useState<ExtractedData>(emptyForm);
+
+  // Manual tab
+  const [manualType, setManualType] = useState<'INCOME' | 'EXPENSE'>('EXPENSE');
+  const [manualDescription, setManualDescription] = useState('');
+  const [manualAmount, setManualAmount] = useState('');
+  const [manualCategory, setManualCategory] = useState('');
+  const [manualDate, setManualDate] = useState(todayISO());
+  const [manualSaveStatus, setManualSaveStatus] = useState<SaveStatus>('idle');
+  const [manualError, setManualError] = useState('');
+  const manualCategories = manualType === 'INCOME'
+    ? HMRC_CATEGORIES.filter(c => c.value.includes('INCOME'))
+    : HMRC_CATEGORIES.filter(c => !c.value.includes('INCOME'));
+
+  // Voice tab
   const [voiceMode, setVoiceMode] = useState<VoiceMode>('idle');
   const [transcript, setTranscript] = useState('');
   const [lumenMessage, setLumenMessage] = useState('');
@@ -102,6 +118,8 @@ export default function ImpensumPage() {
   const [voiceSaveStatus, setVoiceSaveStatus] = useState<SaveStatus>('idle');
   const [voiceSaveError, setVoiceSaveError] = useState('');
   const [conversationHistory, setConversationHistory] = useState<{role: string, text: string}[]>([]);
+
+  // Mileage tab
   const [mileageFrom, setMileageFrom] = useState('');
   const [mileageTo, setMileageTo] = useState('');
   const [mileageReturn, setMileageReturn] = useState(true);
@@ -198,6 +216,32 @@ export default function ImpensumPage() {
     const { error } = await supabase.from('transactions').insert({ user_id: user.id, date: form.date || todayISO(), type: txType, amount_gross: gross, amount_net: parseFloat(net.toFixed(2)), vat_amount: parseFloat(vat.toFixed(2)), vat_rate: form.vat_rate, description: form.description, category: form.category, income_source: txType === 'INCOME' ? 'TRADING' : null, accounting_method: 'CASH', tax_year: getTaxYear(dateObj), quarter: getHMRCQuarter(dateObj), status: 'CONFIRMED', notes: form.notes || null });
     if (error) { setSaveError(error.message); setSaveStatus('error'); return; }
     setSaveStatus('saved');
+  }
+
+  async function saveManualTransaction() {
+    if (!manualDescription.trim()) { setManualError('Please enter a description.'); return; }
+    if (!manualAmount || isNaN(Number(manualAmount)) || Number(manualAmount) <= 0) { setManualError('Please enter a valid amount.'); return; }
+    if (!manualCategory) { setManualError('Please select a category.'); return; }
+    setManualSaveStatus('saving'); setManualError('');
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setManualError('Not authenticated.'); setManualSaveStatus('error'); return; }
+    const dateObj = new Date(manualDate);
+    const { error } = await supabase.from('transactions').insert({
+      user_id: user.id, type: manualType,
+      description: manualDescription.trim(), amount_gross: Number(manualAmount),
+      amount_net: Number(manualAmount), vat_amount: 0, vat_rate: 'NOT_REGISTERED',
+      category: manualCategory, date: manualDate,
+      income_source: manualType === 'INCOME' ? 'TRADING' : null,
+      accounting_method: 'CASH', tax_year: getTaxYear(dateObj),
+      quarter: getHMRCQuarter(dateObj), status: 'CONFIRMED',
+    });
+    if (error) { setManualError(error.message); setManualSaveStatus('error'); return; }
+    setManualSaveStatus('saved');
+  }
+
+  function resetManual() {
+    setManualType('EXPENSE'); setManualDescription(''); setManualAmount('');
+    setManualCategory(''); setManualDate(todayISO()); setManualSaveStatus('idle'); setManualError('');
   }
 
   function scanAnother() { setImagePreview(null); setExtracted(null); setSaveStatus('idle'); setSaveError(''); setReadError(''); setForm(emptyForm); if (fileInputRef.current) fileInputRef.current.value = ''; }
@@ -302,7 +346,7 @@ export default function ImpensumPage() {
 
   function resetMileage() { setMileageFrom(''); setMileageTo(''); setMileageReturn(true); setMileageMiles(''); setMileageDate(todayISO()); setMileagePurpose(''); setMileageCalc(null); setMileageSaveStatus('idle'); setGpsError(''); }
 
-  const input: React.CSSProperties = { width: '100%', padding: '10px 14px', fontSize: 14, border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff', fontFamily: "'DM Sans', sans-serif", color: '#1C1C1E', boxSizing: 'border-box' };
+  const inp: React.CSSProperties = { width: '100%', padding: '10px 14px', fontSize: 14, border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff', fontFamily: "'DM Sans', sans-serif", color: '#1C1C1E', boxSizing: 'border-box' };
   const lbl: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 };
   const tabBtn = (active: boolean): React.CSSProperties => ({ flex: 1, padding: '10px 8px', fontSize: 12, fontWeight: 700, borderRadius: 10, border: `2px solid ${active ? '#01D98D' : '#E5E7EB'}`, background: active ? '#E8F8F2' : '#fff', color: active ? '#0A2E1E' : '#9CA3AF', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", transition: 'all 0.15s' });
 
@@ -314,12 +358,9 @@ export default function ImpensumPage() {
         <Sidebar active="IMPENSUM" userName={userName} plan={plan} netProfit={sidebarNetProfit} income={sidebarIncome} expenses={sidebarExpenses} taxDue={sidebarTaxDue} />
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
-
           {!isMobile && (
             <div style={{ background: '#fff', borderBottom: '0.5px solid #E5E7EB', padding: '0 28px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-                <span style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E' }}>IMPENSUM <span style={{ color: '#01D98D' }}>|</span> Receipt Capture</span>
-              </div>
+              <span style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E' }}>IMPENSUM <span style={{ color: '#01D98D' }}>|</span> Receipt Capture</span>
               <button onClick={() => { window.location.href = '/dashboard/reditus'; }} style={{ fontSize: 12, color: '#01D98D', fontWeight: 600, cursor: 'pointer', background: 'none', border: 'none', fontFamily: "'DM Sans', sans-serif" }}>View all transactions</button>
             </div>
           )}
@@ -327,9 +368,11 @@ export default function ImpensumPage() {
           <div style={{ flex: 1, overflowY: 'auto' }}>
             <main style={{ maxWidth: 680, margin: '0 auto', padding: isMobile ? '16px 14px 80px' : '32px 28px 80px' }}>
 
+              {/* Tab row: Receipt Upload | Manual Entry | Voice Entry | Mileage */}
               <div style={{ display: 'flex', gap: 8, marginBottom: 28 }}>
-                <button style={tabBtn(tab === 'upload')} onClick={() => setTab('upload')}>Receipt Upload</button>
-                <button style={tabBtn(tab === 'voice')} onClick={() => setTab('voice')}>Voice Entry</button>
+                <button style={tabBtn(tab === 'upload')}  onClick={() => setTab('upload')}>Receipt Upload</button>
+                <button style={tabBtn(tab === 'manual')}  onClick={() => setTab('manual')}>Manual Entry</button>
+                <button style={tabBtn(tab === 'voice')}   onClick={() => setTab('voice')}>Voice Entry</button>
                 <button style={tabBtn(tab === 'mileage')} onClick={() => setTab('mileage')}>Mileage</button>
               </div>
 
@@ -353,7 +396,7 @@ export default function ImpensumPage() {
                         <input ref={fileInputRef} type="file" accept="image/*,.pdf" onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); }} style={{ display: 'none' }} />
                       </div>
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
-                        {[{ l: 'Web Upload', a: true }, { l: 'Voice Entry', a: true }, { l: 'Mileage Tracker', a: true }, { l: 'Email Forward', a: false }, { l: 'WhatsApp', a: false }, { l: 'Bank Feed', a: false }].map(p => (
+                        {[{ l: 'Web Upload', a: true }, { l: 'Manual Entry', a: true }, { l: 'Voice Entry', a: true }, { l: 'Mileage Tracker', a: true }, { l: 'Email Forward', a: false }, { l: 'WhatsApp', a: false }, { l: 'Bank Feed', a: false }].map(p => (
                           <span key={p.l} style={{ padding: '4px 12px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: p.a ? '#E8F8F2' : '#F3F4F6', color: p.a ? '#01D98D' : '#9CA3AF', border: `1px solid ${p.a ? '#01D98D' : 'transparent'}` }}>
                             {p.a ? 'Live: ' : 'Coming: '}{p.l}
                           </span>
@@ -361,7 +404,6 @@ export default function ImpensumPage() {
                       </div>
                     </>
                   )}
-
                   {imagePreview && saveStatus !== 'saved' && (
                     <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', padding: 24, marginBottom: 20 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
@@ -374,7 +416,6 @@ export default function ImpensumPage() {
                       {readError && <div style={{ background: '#FEF2F2', borderRadius: 10, padding: '12px 16px', color: '#991B1B', fontSize: 13, marginTop: 8 }}>{readError}</div>}
                     </div>
                   )}
-
                   {extracted && saveStatus !== 'saved' && (
                     <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', padding: 24 }}>
                       <div style={{ background: extracted.confidence === 'HIGH' ? '#F0FDF8' : extracted.confidence === 'MEDIUM' ? '#FFFBEB' : '#FEF2F2', border: `1px solid ${extracted.confidence === 'HIGH' ? '#BBF7E4' : extracted.confidence === 'MEDIUM' ? '#FDE68A' : '#FECACA'}`, borderRadius: 10, padding: '10px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -388,26 +429,25 @@ export default function ImpensumPage() {
                           <button onClick={() => setTxType('INCOME')} style={{ flex: 1, padding: '10px', fontSize: 13, fontWeight: 700, borderRadius: 10, border: `2px solid ${txType === 'INCOME' ? '#01D98D' : '#E5E7EB'}`, background: txType === 'INCOME' ? '#E8F8F2' : '#fff', color: txType === 'INCOME' ? '#01D98D' : '#9CA3AF', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Income</button>
                         </div>
                       </div>
-                      <div style={{ marginBottom: 16 }}><label style={lbl}>Amount</label><input type="number" step="0.01" min="0" value={form.amount_gross} onChange={e => setForm(f => ({ ...f, amount_gross: e.target.value }))} style={{ ...input, fontSize: 24, fontWeight: 700, fontFamily: "'Montserrat', sans-serif" }} /></div>
-                      <div style={{ marginBottom: 16 }}><label style={lbl}>Date</label><input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} style={input} /></div>
-                      <div style={{ marginBottom: 16 }}><label style={lbl}>Merchant / Description</label><input type="text" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} style={input} /></div>
+                      <div style={{ marginBottom: 16 }}><label style={lbl}>Amount</label><input type="number" step="0.01" min="0" value={form.amount_gross} onChange={e => setForm(f => ({ ...f, amount_gross: e.target.value }))} style={{ ...inp, fontSize: 24, fontWeight: 700, fontFamily: "'Montserrat', sans-serif" }} /></div>
+                      <div style={{ marginBottom: 16 }}><label style={lbl}>Date</label><input type="date" value={form.date} onChange={e => setForm(f => ({ ...f, date: e.target.value }))} style={inp} /></div>
+                      <div style={{ marginBottom: 16 }}><label style={lbl}>Merchant / Description</label><input type="text" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} style={inp} /></div>
                       <div style={{ marginBottom: 16 }}>
                         <label style={lbl}>HMRC Category</label>
-                        <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} style={input}>
+                        <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} style={inp}>
                           <option value="">Select category</option>
                           <optgroup label="Income">{HMRC_CATEGORIES.filter(c => c.value.includes('INCOME')).map(c => <option key={c.value} value={c.value}>{c.label}</option>)}</optgroup>
                           <optgroup label="Expenses">{HMRC_CATEGORIES.filter(c => !c.value.includes('INCOME')).map(c => <option key={c.value} value={c.value}>{c.label}</option>)}</optgroup>
                         </select>
                       </div>
-                      <div style={{ marginBottom: 16 }}><label style={lbl}>VAT</label><select value={form.vat_rate} onChange={e => setForm(f => ({ ...f, vat_rate: e.target.value }))} style={input}>{VAT_RATES.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}</select></div>
-                      <div style={{ marginBottom: 24 }}><label style={lbl}>Notes</label><input type="text" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Any additional notes" style={input} /></div>
+                      <div style={{ marginBottom: 16 }}><label style={lbl}>VAT</label><select value={form.vat_rate} onChange={e => setForm(f => ({ ...f, vat_rate: e.target.value }))} style={inp}>{VAT_RATES.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}</select></div>
+                      <div style={{ marginBottom: 24 }}><label style={lbl}>Notes</label><input type="text" value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Any additional notes" style={inp} /></div>
                       {saveError && <div style={{ background: '#FEF2F2', borderRadius: 8, padding: '10px 14px', color: '#991B1B', fontSize: 13, marginBottom: 12 }}>{saveError}</div>}
                       <button onClick={saveTransaction} disabled={saveStatus === 'saving'} style={{ width: '100%', padding: '14px', background: '#01D98D', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: "'Montserrat', sans-serif", opacity: saveStatus === 'saving' ? 0.7 : 1 }}>
                         {saveStatus === 'saving' ? 'Saving...' : 'Save to My Accounts'}
                       </button>
                     </div>
                   )}
-
                   {saveStatus === 'saved' && (
                     <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', padding: '48px 32px', textAlign: 'center' }}>
                       <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#E8F8F2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
@@ -417,6 +457,53 @@ export default function ImpensumPage() {
                       <div style={{ fontSize: 14, color: '#6B7280', marginBottom: 32 }}>{form.description} has been added to REDITUS.</div>
                       <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
                         <button onClick={scanAnother} style={{ padding: '12px 28px', background: '#01D98D', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'Montserrat', sans-serif" }}>Scan another receipt</button>
+                        <button onClick={() => { window.location.href = '/dashboard/reditus'; }} style={{ padding: '12px 28px', background: '#F3F4F6', color: '#374151', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>View transactions</button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {/* ─── MANUAL ENTRY TAB ─── */}
+              {tab === 'manual' && (
+                <>
+                  {manualSaveStatus !== 'saved' ? (
+                    <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', padding: 28 }}>
+                      <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 20, color: '#0A2E1E', marginBottom: 4 }}>Manual Entry</div>
+                      <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 24 }}>Type in the transaction details directly.</div>
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+                        {(['INCOME', 'EXPENSE'] as const).map(t => (
+                          <button key={t} onClick={() => { setManualType(t); setManualCategory(''); }} style={{ flex: 1, padding: '10px', fontSize: 13, fontWeight: 700, borderRadius: 10, border: `2px solid ${manualType === t ? (t === 'INCOME' ? '#01D98D' : '#EF4444') : '#E5E7EB'}`, background: manualType === t ? (t === 'INCOME' ? '#F0FDF8' : '#FEF2F2') : '#fff', color: manualType === t ? (t === 'INCOME' ? '#065F46' : '#991B1B') : '#6B7280', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+                            {t === 'INCOME' ? '↑ Income' : '↓ Expense'}
+                          </button>
+                        ))}
+                      </div>
+                      <div style={{ marginBottom: 16 }}><label style={lbl}>Description</label><input type="text" value={manualDescription} onChange={e => setManualDescription(e.target.value)} placeholder="e.g. Invoice #001 — Client A" style={inp} /></div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+                        <div><label style={lbl}>Amount (£)</label><input type="number" placeholder="0.00" min="0" step="0.01" value={manualAmount} onChange={e => setManualAmount(e.target.value)} style={{ ...inp, fontSize: 20, fontWeight: 700, fontFamily: "'Montserrat', sans-serif" }} /></div>
+                        <div><label style={lbl}>Date</label><input type="date" value={manualDate} onChange={e => setManualDate(e.target.value)} style={inp} /></div>
+                      </div>
+                      <div style={{ marginBottom: 20 }}>
+                        <label style={lbl}>HMRC Category</label>
+                        <select value={manualCategory} onChange={e => setManualCategory(e.target.value)} style={{ ...inp, color: manualCategory ? '#1C1C1E' : '#9CA3AF' }}>
+                          <option value="">Select category...</option>
+                          {manualCategories.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                        </select>
+                      </div>
+                      {manualError && <div style={{ background: '#FEF2F2', borderRadius: 8, padding: '10px 14px', color: '#991B1B', fontSize: 13, marginBottom: 14 }}>{manualError}</div>}
+                      <button onClick={saveManualTransaction} disabled={manualSaveStatus === 'saving'} style={{ width: '100%', padding: '14px', background: '#01D98D', color: '#0A2E1E', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: manualSaveStatus === 'saving' ? 'not-allowed' : 'pointer', opacity: manualSaveStatus === 'saving' ? 0.7 : 1, fontFamily: "'Montserrat', sans-serif" }}>
+                        {manualSaveStatus === 'saving' ? 'Saving...' : 'Save Transaction'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', padding: '48px 32px', textAlign: 'center' }}>
+                      <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#E8F8F2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
+                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none"><path d="M8 16L13 21L24 11" stroke="#01D98D" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      </div>
+                      <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 22, color: '#0A2E1E', marginBottom: 8 }}>Saved. Your accounts are up to date.</div>
+                      <div style={{ fontSize: 14, color: '#6B7280', marginBottom: 32 }}>{manualDescription} has been added to REDITUS.</div>
+                      <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                        <button onClick={resetManual} style={{ padding: '12px 28px', background: '#01D98D', color: '#fff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'Montserrat', sans-serif" }}>Add another</button>
                         <button onClick={() => { window.location.href = '/dashboard/reditus'; }} style={{ padding: '12px 28px', background: '#F3F4F6', color: '#374151', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>View transactions</button>
                       </div>
                     </div>
@@ -478,13 +565,13 @@ export default function ImpensumPage() {
                             </div>
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
-                            <div><label style={lbl}>Amount</label><input type="number" step="0.01" value={voiceForm.amount_gross} onChange={e => setVoiceForm(f => ({ ...f, amount_gross: e.target.value }))} style={{ ...input, fontSize: 20, fontWeight: 700, fontFamily: "'Montserrat', sans-serif" }} /></div>
-                            <div><label style={lbl}>Date</label><input type="date" value={voiceForm.date} onChange={e => setVoiceForm(f => ({ ...f, date: e.target.value }))} style={input} /></div>
+                            <div><label style={lbl}>Amount</label><input type="number" step="0.01" value={voiceForm.amount_gross} onChange={e => setVoiceForm(f => ({ ...f, amount_gross: e.target.value }))} style={{ ...inp, fontSize: 20, fontWeight: 700, fontFamily: "'Montserrat', sans-serif" }} /></div>
+                            <div><label style={lbl}>Date</label><input type="date" value={voiceForm.date} onChange={e => setVoiceForm(f => ({ ...f, date: e.target.value }))} style={inp} /></div>
                           </div>
-                          <div style={{ marginBottom: 14 }}><label style={lbl}>Description</label><input type="text" value={voiceForm.description} onChange={e => setVoiceForm(f => ({ ...f, description: e.target.value }))} style={input} /></div>
+                          <div style={{ marginBottom: 14 }}><label style={lbl}>Description</label><input type="text" value={voiceForm.description} onChange={e => setVoiceForm(f => ({ ...f, description: e.target.value }))} style={inp} /></div>
                           <div style={{ marginBottom: 20 }}>
                             <label style={lbl}>HMRC Category</label>
-                            <select value={voiceForm.category} onChange={e => setVoiceForm(f => ({ ...f, category: e.target.value }))} style={input}>
+                            <select value={voiceForm.category} onChange={e => setVoiceForm(f => ({ ...f, category: e.target.value }))} style={inp}>
                               <option value="">Select category</option>
                               <optgroup label="Income">{HMRC_CATEGORIES.filter(c => c.value.includes('INCOME')).map(c => <option key={c.value} value={c.value}>{c.label}</option>)}</optgroup>
                               <optgroup label="Expenses">{HMRC_CATEGORIES.filter(c => !c.value.includes('INCOME')).map(c => <option key={c.value} value={c.value}>{c.label}</option>)}</optgroup>
@@ -524,16 +611,16 @@ export default function ImpensumPage() {
                       </div>
                       <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', padding: 24, marginBottom: 16 }}>
                         <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 16, color: '#0A2E1E', marginBottom: 20 }}>Journey details</div>
-                        <div style={{ marginBottom: 14 }}><label style={lbl}>From</label><input type="text" value={mileageFrom} onChange={e => setMileageFrom(e.target.value)} placeholder="Your location (auto-detected)" style={input} /></div>
+                        <div style={{ marginBottom: 14 }}><label style={lbl}>From</label><input type="text" value={mileageFrom} onChange={e => setMileageFrom(e.target.value)} placeholder="Your location (auto-detected)" style={inp} /></div>
                         <div style={{ marginBottom: 14 }}>
                           <label style={lbl}>To (destination)</label>
                           <div style={{ display: 'flex', gap: 8 }}>
-                            <input type="text" value={mileageTo} onChange={e => setMileageTo(e.target.value)} placeholder="e.g. Leeds city centre, or postcode" style={{ ...input, flex: 1 }} />
+                            <input type="text" value={mileageTo} onChange={e => setMileageTo(e.target.value)} placeholder="e.g. Leeds city centre, or postcode" style={{ ...inp, flex: 1 }} />
                             <button onClick={calculateGPSRoute} disabled={gpsLoading} style={{ padding: '10px 16px', background: '#0A2E1E', color: '#01D98D', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", whiteSpace: 'nowrap' }}>{gpsLoading ? '...' : 'Calculate'}</button>
                           </div>
                           {gpsError && <div style={{ fontSize: 12, color: '#EF4444', marginTop: 6 }}>{gpsError}</div>}
                         </div>
-                        <div style={{ marginBottom: 14 }}><label style={lbl}>Or enter miles manually</label><input type="number" min="0" step="0.1" value={mileageMiles} onChange={e => setMileageMiles(e.target.value)} placeholder="e.g. 47" style={input} /></div>
+                        <div style={{ marginBottom: 14 }}><label style={lbl}>Or enter miles manually</label><input type="number" min="0" step="0.1" value={mileageMiles} onChange={e => setMileageMiles(e.target.value)} placeholder="e.g. 47" style={inp} /></div>
                         <div style={{ marginBottom: 14 }}>
                           <label style={lbl}>Journey type</label>
                           <div style={{ display: 'flex', gap: 8 }}>
@@ -541,13 +628,13 @@ export default function ImpensumPage() {
                             <button onClick={() => setMileageReturn(true)} style={{ flex: 1, padding: '10px', fontSize: 13, fontWeight: 700, borderRadius: 10, border: `2px solid ${mileageReturn ? '#01D98D' : '#E5E7EB'}`, background: mileageReturn ? '#E8F8F2' : '#fff', color: mileageReturn ? '#0A2E1E' : '#9CA3AF', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Return trip</button>
                           </div>
                         </div>
-                        <div style={{ marginBottom: 14 }}><label style={lbl}>Date</label><input type="date" value={mileageDate} onChange={e => setMileageDate(e.target.value)} style={input} /></div>
-                        <div style={{ marginBottom: 20 }}><label style={lbl}>Business purpose</label><input type="text" value={mileagePurpose} onChange={e => setMileagePurpose(e.target.value)} placeholder="e.g. Client meeting, site visit" style={input} /></div>
+                        <div style={{ marginBottom: 14 }}><label style={lbl}>Date</label><input type="date" value={mileageDate} onChange={e => setMileageDate(e.target.value)} style={inp} /></div>
+                        <div style={{ marginBottom: 20 }}><label style={lbl}>Business purpose</label><input type="text" value={mileagePurpose} onChange={e => setMileagePurpose(e.target.value)} placeholder="e.g. Client meeting, site visit" style={inp} /></div>
                         {mileageCalc && (
                           <div style={{ background: '#0A2E1E', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, textAlign: 'center' }}>
-                              {[['Total miles', mileageCalc.miles, '#fff'], ['HMRC rate', '45p', '#fff'], ['Allowance', `£${mileageCalc.amount.toFixed(2)}`, '#01D98D']].map(([lbl2, val, col]) => (
-                                <div key={lbl2 as string}><div style={{ fontSize: 10, color: '#6B9F8E', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>{lbl2}</div><div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 24, color: col as string }}>{val}</div></div>
+                              {[['Total miles', mileageCalc.miles, '#fff'], ['HMRC rate', '45p', '#fff'], ['Allowance', `£${mileageCalc.amount.toFixed(2)}`, '#01D98D']].map(([l2, val, col]) => (
+                                <div key={l2 as string}><div style={{ fontSize: 10, color: '#6B9F8E', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>{l2}</div><div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 24, color: col as string }}>{val}</div></div>
                               ))}
                             </div>
                           </div>
