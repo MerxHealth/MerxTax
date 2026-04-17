@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Logo from '@/components/Logo';
 
 const ADMIN_USER = 'admin@merxtax.co.uk';
-const ADMIN_PASS = 'M@r24cus_2412'; // change this — or move to NEXT_PUBLIC_ADMIN_PASS env var
+const ADMIN_PASS = 'MerxAdmin2026!'; // change this — or move to NEXT_PUBLIC_ADMIN_PASS env var
 const ADMIN_TOKEN = 'mt_admin_authenticated';
 
 export default function AdminLoginPage() {
@@ -50,10 +51,8 @@ export default function AdminLoginPage() {
 
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
-          <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 26, color: '#01D98D', marginBottom: 6 }}>
-            merXtax
-          </div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.15em' }}>
+          <Logo height={160} style={{ filter: 'brightness(0) invert(1)' }} />
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.15em', marginTop: 8 }}>
             Admin Portal
           </div>
         </div>
