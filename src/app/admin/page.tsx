@@ -132,7 +132,9 @@ export default function AdminPage() {
       {/* Top bar */}
       <div style={{ background: '#0A2E1E', padding: '0 32px', height: 60, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <Logo height={56} style={{ filter: 'brightness(0) invert(1)' }} />
+          <div style={{ filter: 'brightness(0) invert(1)', display: 'inline-block' }}>
+            <Logo height={56} />
+          </div>
           <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>|</span>
           <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Admin Panel</span>
         </div>
