@@ -267,10 +267,16 @@ export default function VigilPage() {
                             </div>
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                            {[['Net', fmt(q.net), q.net >= 0 ? '#0A2E1E' : '#EF4444'], [q.daysLeft < 0 ? 'Overdue by' : 'Deadline in', q.daysLeft < 0 ? `${Math.abs(q.daysLeft)}d` : `${q.daysLeft}d`, color], ['Transactions', `${q.confirmedCount}/${q.transactionCount}`, '#374151'], ['Tax aside', fmt(q.estimatedTax), '#0A2E1E']].map(([lbl, val, col]) => (
-                              <div key={lbl as string}>
+                            {[
+                              { lbl: 'Net',          val: fmt(q.net),                                                                    col: q.net >= 0 ? '#0A2E1E' : '#EF4444', note: null },
+                              { lbl: q.daysLeft < 0 ? 'Overdue by' : 'Deadline in', val: q.daysLeft < 0 ? `${Math.abs(q.daysLeft)}d` : `${q.daysLeft}d`, col: color, note: null },
+                              { lbl: 'Transactions', val: `${q.confirmedCount}/${q.transactionCount}`,                                   col: '#374151',                           note: null },
+                              { lbl: 'Tax aside',    val: fmt(q.estimatedTax),                                                           col: '#0A2E1E',                           note: '(IT + Class 4 NI)' },
+                            ].map(({ lbl, val, col, note }) => (
+                              <div key={lbl}>
                                 <div style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4 }}>{lbl}</div>
-                                <div style={{ fontWeight: 700, fontSize: 14, color: col as string }}>{val}</div>
+                                {note && <div style={{ fontSize: 9, color: '#9CA3AF', marginBottom: 1 }}>{note}</div>}
+                                <div style={{ fontWeight: 700, fontSize: 14, color: col }}>{val}</div>
                               </div>
                             ))}
                           </div>
@@ -374,7 +380,7 @@ export default function VigilPage() {
                           ))}
                         </div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-                          {[['Income', fmt(q.income), '#01D98D'], ['Expenses', fmt(q.expenses), '#EF4444'], ['Tax to set aside', fmt(q.estimatedTax), '#0A2E1E']].map(([lbl, val, col]) => (
+                          {[['Income', fmt(q.income), '#01D98D'], ['Expenses', fmt(q.expenses), '#EF4444'], ['Tax aside (IT + NI)', fmt(q.estimatedTax), '#0A2E1E']].map(([lbl, val, col]) => (
                             <div key={lbl as string} style={{ background: '#F9FAFB', borderRadius: 8, padding: '10px 14px' }}>
                               <div style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4 }}>{lbl}</div>
                               <div style={{ fontWeight: 700, color: col as string, fontSize: 15 }}>{val}</div>
