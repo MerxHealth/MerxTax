@@ -395,34 +395,23 @@ export default function FacturaPage() {
               <div style={{ maxWidth: 720, margin: '0 auto' }}>
                 {msg && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '10px 16px', fontSize: 13, color: '#991B1B', marginBottom: 16 }}>{msg}</div>}
 
-                {/* Saved templates strip — shown at the top when templates exist */}
-                {templates.length > 0 && (
-                  <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 14, padding: '16px 20px', marginBottom: 16 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>Saved Client Templates — click to pre-fill</div>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {templates.map(t => (
-                        <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 0, border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden' }}>
-                          <button
-                            onClick={() => loadTemplate(t)}
-                            style={{ padding: '7px 14px', background: '#F9FAFB', border: 'none', color: '#0A2E1E', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
-                          >
-                            📋 {t.template_name}
-                          </button>
-                          <button
-                            onClick={() => deleteTemplate(t.id)}
-                            style={{ padding: '7px 10px', background: '#FEF2F2', border: 'none', borderLeft: '1px solid #E5E7EB', color: '#EF4444', cursor: 'pointer', fontSize: 12, lineHeight: 1 }}
-                            title="Delete template"
-                          >✕</button>
-                        </div>
-                      ))}
-                    </div>
-                    <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 10 }}>Clicking a template pre-fills the client, line items, and notes. Date is always set to today.</div>
-                  </div>
-                )}
-
                 {/* Client details card */}
                 <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 16, padding: '24px', marginBottom: 16 }}>
-                  <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E', marginBottom: 20 }}>Client Details</div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
+                    <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E' }}>Client Details</div>
+                    {templates.length > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 12, color: '#6B7280' }}>Load saved client:</span>
+                        <select
+                          onChange={e => { const t = templates.find(t => t.id === e.target.value); if (t) loadTemplate(t); e.target.value = ''; }}
+                          style={{ fontSize: 13, padding: '7px 12px', border: '1px solid #E5E7EB', borderRadius: 9, outline: 'none', color: '#0A2E1E', background: '#fff', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
+                        >
+                          <option value="">— select client —</option>
+                          {templates.map(t => <option key={t.id} value={t.id}>{t.template_name}</option>)}
+                        </select>
+                      </div>
+                    )}
+                  </div>
                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 16, marginBottom: 16 }}>
                     <div><label style={labelStyle}>Client Name *</label><input value={clientName} onChange={e => setClientName(e.target.value)} placeholder="Smith Ltd" style={inputStyle} /></div>
                     <div><label style={labelStyle}>Client Email</label><input value={clientEmail} onChange={e => setClientEmail(e.target.value)} placeholder="accounts@smithltd.com" style={inputStyle} /></div>
