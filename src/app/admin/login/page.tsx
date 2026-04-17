@@ -51,7 +51,9 @@ export default function AdminLoginPage() {
 
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: 36 }}>
-          <Logo height={160} style={{ filter: 'brightness(0) invert(1)' }} />
+          <div style={{ filter: 'brightness(0) invert(1)', display: 'inline-block' }}>
+            <Logo height={160} />
+          </div>
           <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.15em', marginTop: 8 }}>
             Admin Portal
           </div>
