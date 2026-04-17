@@ -63,6 +63,7 @@ export default function QuartusPage() {
   const [auditScore, setAuditScore] = useState<number | null>(null);
   const [auditFlags, setAuditFlags] = useState<string[]>([]);
   const [reconSkipped, setReconSkipped] = useState(false);
+  const [reconConfirmed, setReconConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [ceremonyData, setCeremonyData] = useState<any>(null);
@@ -143,7 +144,7 @@ export default function QuartusPage() {
     if (drafts > 0) { flags.push(`${drafts} unconfirmed draft transaction${drafts > 1 ? 's' : ''} not included`); score -= 8 * drafts; }
     if (q.income === 0) { flags.push('No income recorded — confirm this is correct'); score -= 15; }
     if (q.income > 0 && q.expenses / q.income > 0.8) { flags.push(`Expense ratio is ${Math.round((q.expenses / q.income) * 100)}% — HMRC queries above 80%`); score -= 10; }
-    if (!reconSkipped) { flags.push('Bank reconciliation not completed — reconcile or skip to proceed'); score -= 5; }
+    if (!reconSkipped && !reconConfirmed) { flags.push('Bank reconciliation not completed — reconcile or skip to proceed'); score -= 5; }
     setAuditScore(Math.max(0, Math.min(100, score))); setAuditFlags(flags); setAuditRunning(false);
   }
 
@@ -257,7 +258,7 @@ export default function QuartusPage() {
                           {isSubmitted ? (
                             <div style={{ background: '#F0FDF8', border: '1px solid #BBF7E4', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#065F46', fontWeight: 500, textAlign: 'center' }}>Submitted {q.submissionDate ? new Date(q.submissionDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''}</div>
                           ) : (
-                            <button onClick={() => { setSelectedQuarter(q); setAuditScore(null); setAuditFlags([]); setReconSkipped(false); setSubmitError(''); setScreen('preflight'); }} disabled={q.transactionCount === 0}
+                            <button onClick={() => { setSelectedQuarter(q); setAuditScore(null); setAuditFlags([]); setReconSkipped(false); setReconConfirmed(false); setSubmitError(''); setScreen('preflight'); }} disabled={q.transactionCount === 0}
                               style={{ width: '100%', padding: '10px', background: q.transactionCount === 0 ? '#F3F4F6' : '#0A2E1E', color: q.transactionCount === 0 ? '#9CA3AF' : '#01D98D', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: q.transactionCount === 0 ? 'not-allowed' : 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                               {q.transactionCount === 0 ? 'No transactions yet' : 'Review & Submit'}
                             </button>
@@ -286,13 +287,19 @@ export default function QuartusPage() {
                         </div>
                       ))}
                     </div>
-                    {!reconSkipped && auditScore === null && (
+                    {!reconSkipped && !reconConfirmed && auditScore === null && (
                       <div style={{ background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: 10, padding: '14px 18px', marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
                         <div><div style={{ fontSize: 12, fontWeight: 700, color: '#92400E', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>Bank reconciliation</div><div style={{ fontSize: 13, color: '#374151' }}>Have you reconciled your bank transactions?</div></div>
                         <div style={{ display: 'flex', gap: 8 }}>
                           <button onClick={() => setReconSkipped(true)} style={{ padding: '8px 16px', background: '#fff', color: '#92400E', border: '1px solid #FCD34D', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Skip</button>
-                          <button onClick={() => setReconSkipped(true)} style={{ padding: '8px 16px', background: '#F59E0B', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Yes, reconciled</button>
+                          <button onClick={() => setReconConfirmed(true)} style={{ padding: '8px 16px', background: '#01D98D', color: '#0A2E1E', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Yes, reconciled ✓</button>
                         </div>
+                      </div>
+                    )}
+                    {reconConfirmed && auditScore === null && (
+                      <div style={{ background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 10, padding: '12px 18px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <span style={{ color: '#01D98D', fontWeight: 800, fontSize: 16 }}>✓</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#065F46' }}>Bank reconciliation confirmed — full audit score applied</span>
                       </div>
                     )}
                     {auditScore === null && !auditRunning && <button onClick={() => runAudit(selectedQuarter)} style={{ width: '100%', padding: '14px', background: '#0A2E1E', color: '#01D98D', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", marginBottom: 8 }}>Run Pre-flight Audit</button>}
