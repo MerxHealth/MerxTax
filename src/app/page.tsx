@@ -236,27 +236,6 @@ export default function LandingPage() {
         }
       `}</style>
 
-      {/* ── NAV ── */}
-      <nav style={{ position: 'sticky', top: 0, zIndex: 100, background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(10px)', borderBottom: '1px solid #F0F0F0' }}>
-        <div style={{ maxWidth: 1160, margin: '0 auto', padding: '0 28px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ height: 64, display: 'flex', alignItems: 'center' }}>
-            <img src="/logo.png" alt="MerxTax" style={{ height: 38, width: 'auto', display: 'block' }} />
-          </div>
-          <div className="wnav" style={{ display: 'flex', alignItems: 'center', gap: 36 }}>
-            {[['How it works', '#modules'], ['Why MerxTax', '#why'], ['Pricing', '#pricing']].map(([l, h]) => (
-              <a key={l} href={h} style={{ fontSize: 13, fontWeight: 600, color: '#888', textDecoration: 'none' }}
-                onMouseEnter={e => (e.currentTarget.style.color = '#0A2E1E')}
-                onMouseLeave={e => (e.currentTarget.style.color = '#888')}>{l}</a>
-            ))}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <a href="/login" style={{ fontSize: 13, fontWeight: 600, color: '#888', textDecoration: 'none' }}
-              onMouseEnter={e => (e.currentTarget.style.color = '#0A2E1E')}
-              onMouseLeave={e => (e.currentTarget.style.color = '#888')}>Sign in</a>
-            <a href="/login" className="btn-g" style={{ fontSize: 12, padding: '10px 22px' }}>Get Started Free</a>
-          </div>
-        </div>
-      </nav>
 
       <div className={mounted ? 'go' : ''}>
 
