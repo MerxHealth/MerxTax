@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
-const ADMIN_EMAIL = 'mark.dyas@merxdigital.co.uk';
+const ADMIN_TOKEN = 'mt_admin_authenticated';
 
 type Relationship = {
   id: string;
@@ -44,9 +44,10 @@ export default function AdminPage() {
   };
 
   const load = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { window.location.href = '/login'; return; }
-    if (user.email !== ADMIN_EMAIL) { window.location.href = '/dashboard'; return; }
+    if (localStorage.getItem(ADMIN_TOKEN) !== 'true') {
+      window.location.href = '/admin/login';
+      return;
+    }
     setAuthorized(true);
 
     // Fetch all agent relationships
@@ -133,9 +134,14 @@ export default function AdminPage() {
           <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>|</span>
           <span style={{ fontSize: 12, fontWeight: 700, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Admin Panel</span>
         </div>
-        <button onClick={() => { window.location.href = '/dashboard'; }} style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
-          ← Back to dashboard
-        </button>
+        <div style={{ display: 'flex', gap: 16 }}>
+          <button onClick={() => { window.location.href = '/dashboard'; }} style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+            ← Back to dashboard
+          </button>
+          <button onClick={() => { localStorage.removeItem(ADMIN_TOKEN); window.location.href = '/admin/login'; }} style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
+            Sign out
+          </button>
+        </div>
       </div>
 
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '28px 24px' }}>

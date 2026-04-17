@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import NavHeader from "@/components/NavHeader";
+import ConditionalNavHeader from "@/components/ConditionalNavHeader";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,7 +26,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} h-full antia`}>
       <body className="min-h-full flex flex-col">
-        <NavHeader />
+        <ConditionalNavHeader />
         {children}
       </body>
     </html>
