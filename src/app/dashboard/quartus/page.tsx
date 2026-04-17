@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { ThemeProvider } from '@/lib/ThemeContext';
 import Sidebar from '@/components/Sidebar';
+import { calcUKSelfEmployedTax, calcUKTaxYear } from '@/lib/taxUtils';
 
 type Quarter = {
   quarter: string; label: string; periodFrom: string; periodTo: string;
@@ -13,11 +14,6 @@ type Quarter = {
 };
 type Screen = 'overview' | 'preflight' | 'intelligence' | 'protection' | 'ceremony';
 
-function getTaxYear(date: Date): string {
-  const y = date.getFullYear(), m = date.getMonth() + 1, d = date.getDate();
-  const after = m > 4 || (m === 4 && d >= 6);
-  return after ? `${y}-${String(y + 1).slice(2)}` : `${y - 1}-${String(y).slice(2)}`;
-}
 function fmt(n: number): string { return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(n); }
 function daysUntil(dateStr: string): number { return Math.ceil((new Date(dateStr).getTime() - Date.now()) / 86400000); }
 function getQuarterMeta(taxYear: string) {
@@ -46,7 +42,7 @@ function getStatusLabel(daysLeft: number, submitted: boolean): string {
 export default function QuartusPage() {
   const supabase = createClient();
   const today = new Date();
-  const currentTaxYear = getTaxYear(today);
+  const currentTaxYear = calcUKTaxYear(today);
 
   const [isMobile, setIsMobile] = useState(false);
   const [sidebarNetProfit, setSidebarNetProfit] = useState(0);
@@ -87,41 +83,52 @@ export default function QuartusPage() {
     setUserName(profile?.full_name || '');
     setSidebarUserName(profile?.full_name || '');
     setSidebarPlan(profile?.plan?.toUpperCase() || 'SOLO');
+
     const { data: txData } = await supabase.from('transactions').select('*').eq('tax_year', taxYear).order('date', { ascending: true });
     const { data: subData } = await supabase.from('quarterly_submissions').select('*').eq('tax_year', taxYear);
     const meta = getQuarterMeta(taxYear);
+
     const built: Quarter[] = meta.map(m => {
-      const qTx = (txData || []).filter((t: any) => t.quarter === m.quarter);
+      const qTx      = (txData || []).filter((t: any) => t.quarter === m.quarter);
       const confirmed = qTx.filter((t: any) => t.status === 'CONFIRMED');
-      const income = confirmed.filter((t: any) => t.type === 'INCOME').reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
-      const expenses = confirmed.filter((t: any) => t.type === 'EXPENSE').reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
-      const net = income - expenses;
-      const sub = (subData || []).find((s: any) => s.quarter === m.quarter);
+      const income    = confirmed.filter((t: any) => t.type === 'INCOME') .reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
+      const expenses  = confirmed.filter((t: any) => t.type === 'EXPENSE').reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
+      const net       = income - expenses;
+      const sub       = (subData || []).find((s: any) => s.quarter === m.quarter);
       const readiness = qTx.length === 0 ? 0 : Math.round((confirmed.length / qTx.length) * 100);
-      return { quarter: m.quarter, label: m.label, periodFrom: m.from, periodTo: m.to, deadline: m.deadline, daysLeft: daysUntil(m.deadline), income, expenses, net, transactionCount: qTx.length, confirmedCount: confirmed.length, submissionStatus: sub?.status ?? 'not_started', submissionDate: sub?.submitted_at, readiness, estimatedTax: Math.max(0, net * 0.2), transactions: qTx };
+      // Per-quarter tax aside = Income Tax + Class 4 NI on this quarter's net
+      const { totalTax: estimatedTax } = calcUKSelfEmployedTax(net);
+      return { quarter: m.quarter, label: m.label, periodFrom: m.from, periodTo: m.to, deadline: m.deadline, daysLeft: daysUntil(m.deadline), income, expenses, net, transactionCount: qTx.length, confirmedCount: confirmed.length, submissionStatus: sub?.status ?? 'not_started', submissionDate: sub?.submitted_at, readiness, estimatedTax, transactions: qTx };
     });
     setQuarters(built);
-    const inc = (txData || []).filter((t: any) => t.type === 'INCOME').reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
+
+    // Sidebar — annual figures
+    const inc = (txData || []).filter((t: any) => t.type === 'INCOME') .reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
     const exp = (txData || []).filter((t: any) => t.type === 'EXPENSE').reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
     const net = inc - exp;
     setSidebarIncome(inc); setSidebarExpenses(exp); setSidebarNetProfit(net);
-    setSidebarTaxDue(Math.max(0, (Math.min(net, 50270) - 12570) * 0.2 + Math.max(0, net - 50270) * 0.4));
+    // Income Tax + Class 4 NI (Class 2 abolished April 2024)
+    const { totalTax } = calcUKSelfEmployedTax(net);
+    setSidebarTaxDue(totalTax);
+
     setLoading(false);
   }, [taxYear]);
 
   useEffect(() => { load(); }, [load]);
 
-  const totalNet = quarters.reduce((s, q) => s + q.net, 0);
-  const totalIncome = quarters.reduce((s, q) => s + q.income, 0);
+  // Annual totals
+  const totalNet      = quarters.reduce((s, q) => s + q.net, 0);
+  const totalIncome   = quarters.reduce((s, q) => s + q.income, 0);
   const totalExpenses = quarters.reduce((s, q) => s + q.expenses, 0);
-  const basicRateLimit = 50270;
-  const totalTax = Math.max(0, Math.min(totalNet, basicRateLimit) - 12570) * 0.2 + Math.max(0, totalNet - basicRateLimit) * 0.4;
-  const class2NI = totalNet > 12570 ? 179.40 : 0;
-  const class4NI = Math.max(0, Math.min(totalNet, 50270) - 12570) * 0.09 + Math.max(0, totalNet - 50270) * 0.02;
-  const totalLiability = totalTax + class2NI + class4NI;
-  const poaApplies = totalTax > 1000;
+
+  // Correct annual tax breakdown (Income Tax + Class 4 NI — Class 2 abolished April 2024)
+  const { incomeTax: annualIncomeTax, class4NI: annualClass4NI, totalTax: totalLiability } = calcUKSelfEmployedTax(totalNet);
+
+  const poaApplies = totalLiability > 1000;
+
+  // What-if modeller
   const whatIfNet = totalNet + (parseFloat(whatIfIncome) || 0);
-  const whatIfTax = Math.max(0, Math.min(whatIfNet, basicRateLimit) - 12570) * 0.2 + Math.max(0, whatIfNet - basicRateLimit) * 0.4;
+  const { totalTax: whatIfTax } = calcUKSelfEmployedTax(whatIfNet);
 
   async function runAudit(q: Quarter) {
     setAuditRunning(true); setAuditScore(null); setAuditFlags([]); setSubmitError('');
@@ -167,9 +174,7 @@ export default function QuartusPage() {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
           {!isMobile && (
             <div style={{ background: '#fff', borderBottom: '0.5px solid #E5E7EB', padding: '0 28px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }} className="no-print">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-                <span style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E' }}>QUARTUS <span style={{ color: '#01D98D' }}>|</span> MTD Submissions</span>
-              </div>
+              <span style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E' }}>QUARTUS <span style={{ color: '#01D98D' }}>|</span> MTD Submissions</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <select value={taxYear} onChange={e => setTaxYear(e.target.value)} style={{ padding: '5px 10px', fontSize: 12, borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', fontFamily: "'DM Sans', sans-serif" }}>
                   {['2026-27','2025-26','2024-25'].map(y => <option key={y} value={y}>{y}</option>)}
@@ -204,12 +209,14 @@ export default function QuartusPage() {
                     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4,1fr)', gap: 12 }}>
                       {[['Total income', fmt(totalIncome), '#01D98D'], ['Total expenses', fmt(totalExpenses), '#EF4444'], ['Net profit', fmt(totalNet), '#0A2E1E'], ['Total liability', fmt(totalLiability), '#F59E0B']].map(([lbl, val, col]) => (
                         <div key={lbl as string} style={{ background: '#F9FAFB', borderRadius: 12, padding: '16px 18px' }}>
-                          <div style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 }}>{lbl}</div>
+                          <div style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 2 }}>{lbl}</div>
+                          {lbl === 'Total liability' && <div style={{ fontSize: 9, color: '#9CA3AF', marginBottom: 4 }}>Income Tax + Class 4 NI</div>}
                           <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 20, color: col as string }}>{val}</div>
                         </div>
                       ))}
                     </div>
                   </div>
+
                   <div style={{ background: '#F0FDF8', border: '1px solid #BBF7E4', borderRadius: 12, padding: '14px 20px', marginBottom: 20, display: 'flex', alignItems: 'flex-start', gap: 14 }}>
                     <div style={{ width: 32, height: 32, borderRadius: '50%', background: '#01D98D', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0A2E1E', fontWeight: 700, fontSize: 14, flexShrink: 0 }}>i</div>
                     <div>
@@ -217,6 +224,7 @@ export default function QuartusPage() {
                       <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.6 }}>Submit 5–10 days before the deadline. Avoid the final 48 hours — late-period submissions attract more algorithmic scrutiny from HMRC.</div>
                     </div>
                   </div>
+
                   <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
                     {quarters.map(q => {
                       const isSubmitted = q.submissionStatus === 'submitted' || q.submissionStatus === 'accepted';
@@ -233,8 +241,17 @@ export default function QuartusPage() {
                             <div style={{ background: '#F3F4F6', borderRadius: 6, overflow: 'hidden', height: 6 }}><div style={{ height: '100%', width: `${isSubmitted ? 100 : q.readiness}%`, background: isSubmitted ? '#01D98D' : q.readiness === 100 ? '#01D98D' : '#F59E0B', borderRadius: 6 }} /></div>
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 14 }}>
-                            {[['Income', fmt(q.income), '#01D98D'], ['Expenses', fmt(q.expenses), '#EF4444'], ['Net profit', fmt(q.net), q.net >= 0 ? '#0A2E1E' : '#EF4444'], ['Tax aside', fmt(q.estimatedTax), '#374151']].map(([lbl, val, col]) => (
-                              <div key={lbl as string}><div style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4 }}>{lbl}</div><div style={{ fontWeight: 700, fontSize: 14, color: col as string }}>{val}</div></div>
+                            {[
+                              { lbl: 'Income',    val: fmt(q.income),       col: '#01D98D', note: null },
+                              { lbl: 'Expenses',  val: fmt(q.expenses),     col: '#EF4444', note: null },
+                              { lbl: 'Net profit',val: fmt(q.net),          col: q.net >= 0 ? '#0A2E1E' : '#EF4444', note: null },
+                              { lbl: 'Tax aside', val: fmt(q.estimatedTax), col: '#374151', note: 'IT + Class 4 NI' },
+                            ].map(({ lbl, val, col, note }) => (
+                              <div key={lbl}>
+                                <div style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4 }}>{lbl}</div>
+                                {note && <div style={{ fontSize: 9, color: '#9CA3AF', marginBottom: 1 }}>{note}</div>}
+                                <div style={{ fontWeight: 700, fontSize: 14, color: col }}>{val}</div>
+                              </div>
                             ))}
                           </div>
                           {isSubmitted ? (
@@ -317,11 +334,11 @@ export default function QuartusPage() {
                       <div style={{ width: 40, height: 40, borderRadius: '50%', background: '#01D98D', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#0A2E1E', fontWeight: 700, fontSize: 18 }}>✓</div>
                     </div>
                     <div style={{ marginBottom: 20 }}><div style={{ fontSize: 13, color: '#6B7280', marginBottom: 4 }}>Submitted on behalf of</div><div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 18, color: '#0A2E1E' }}>{userName}</div></div>
-                    {[{ label: 'Period', value: `${ceremonyData.quarter} — ${ceremonyData.taxYear}` }, { label: 'Submitted', value: ceremonyData.submittedAt }, { label: 'HMRC Reference', value: ceremonyData.reference }, { label: 'Income', value: fmt(ceremonyData.income) }, { label: 'Expenses', value: fmt(ceremonyData.expenses) }, { label: 'Net profit', value: fmt(ceremonyData.net) }, { label: 'Estimated tax', value: fmt(ceremonyData.estimatedTax) }, { label: 'Confidence', value: `${ceremonyData.score}/100` }].map(row => (
+                    {[{ label: 'Period', value: `${ceremonyData.quarter} — ${ceremonyData.taxYear}` }, { label: 'Submitted', value: ceremonyData.submittedAt }, { label: 'HMRC Reference', value: ceremonyData.reference }, { label: 'Income', value: fmt(ceremonyData.income) }, { label: 'Expenses', value: fmt(ceremonyData.expenses) }, { label: 'Net profit', value: fmt(ceremonyData.net) }, { label: 'Tax aside (IT + Class 4 NI)', value: fmt(ceremonyData.estimatedTax) }, { label: 'Confidence', value: `${ceremonyData.score}/100` }].map(row => (
                       <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid #F3F4F6', fontSize: 13 }}><span style={{ color: '#6B7280' }}>{row.label}</span><span style={{ fontWeight: 600, color: '#0A2E1E' }}>{row.value}</span></div>
                     ))}
                     <div style={{ marginTop: 20, padding: '14px 16px', background: '#F0FDF8', borderRadius: 10 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#065F46', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Tax reserve recommended</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#065F46', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Tax reserve recommended (IT + Class 4 NI)</div>
                       <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 22, color: '#0A2E1E' }}>{fmt(ceremonyData.estimatedTax)}</div>
                     </div>
                   </div>
@@ -336,9 +353,13 @@ export default function QuartusPage() {
                 <>
                   <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', padding: 28, marginBottom: 20 }}>
                     <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 18, color: '#0A2E1E', marginBottom: 4 }}>Live tax liability tracker</div>
-                    <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 20 }}>Based on confirmed transactions across all quarters.</div>
+                    <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 20 }}>Based on confirmed transactions across all quarters. Income Tax + Class 4 NI (Class 2 NI abolished April 2024).</div>
                     <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 12, marginBottom: 20 }}>
-                      {[{ label: 'Income tax', value: fmt(totalTax), note: 'Basic + higher rate', highlight: false }, { label: 'Class 2 & 4 NI', value: fmt(class2NI + class4NI), note: 'Self-employed NI', highlight: false }, { label: 'Total liability', value: fmt(totalLiability), note: 'Inc. NI contributions', highlight: true }].map(item => (
+                      {[
+                        { label: 'Income Tax',    value: fmt(annualIncomeTax), note: 'After £12,570 personal allowance', highlight: false },
+                        { label: 'Class 4 NI',    value: fmt(annualClass4NI),  note: '6% on £12,570–£50,270 / 2% above', highlight: false },
+                        { label: 'Total liability', value: fmt(totalLiability), note: 'Income Tax + Class 4 NI', highlight: true },
+                      ].map(item => (
                         <div key={item.label} style={{ background: item.highlight ? '#0A2E1E' : '#F9FAFB', borderRadius: 12, padding: '16px 18px' }}>
                           <div style={{ fontSize: 10, color: item.highlight ? '#01D98D' : '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>{item.label}</div>
                           <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 22, color: item.highlight ? '#01D98D' : '#0A2E1E', marginBottom: 2 }}>{item.value}</div>
@@ -350,7 +371,7 @@ export default function QuartusPage() {
                       <div style={{ background: '#E6F1FB', border: '1px solid #B5D4F4', borderRadius: 10, padding: '14px 18px' }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: '#185FA5', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Payments on account apply</div>
                         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 8 }}>
-                          {[{ label: '31 Jan — balancing + 1st POA', amount: totalTax }, { label: '31 July — 2nd POA', amount: totalTax / 2 }, { label: 'Total cash needed', amount: totalTax * 1.5 }].map(p => (
+                          {[{ label: '31 Jan — balancing + 1st POA', amount: totalLiability }, { label: '31 July — 2nd POA', amount: totalLiability / 2 }, { label: 'Total cash needed', amount: totalLiability * 1.5 }].map(p => (
                             <div key={p.label} style={{ background: '#fff', borderRadius: 8, padding: '10px 14px' }}><div style={{ fontSize: 10, color: '#6B7280', marginBottom: 4 }}>{p.label}</div><div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 16, color: '#0A2E1E' }}>{fmt(p.amount)}</div></div>
                           ))}
                         </div>
@@ -366,7 +387,11 @@ export default function QuartusPage() {
                     </div>
                     {whatIfIncome && (
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-                        {[{ label: 'New net profit', value: fmt(whatIfNet), color: '#0A2E1E', bg: '#F9FAFB' }, { label: 'New tax bill', value: fmt(whatIfTax), color: '#EF4444', bg: '#F9FAFB' }, { label: 'Extra tax', value: fmt(whatIfTax - totalTax), color: whatIfNet > basicRateLimit ? '#92400E' : '#065F46', bg: whatIfNet > basicRateLimit ? '#FEF3C7' : '#F0FDF8' }].map(item => (
+                        {[
+                          { label: 'New net profit', value: fmt(whatIfNet),             color: '#0A2E1E', bg: '#F9FAFB' },
+                          { label: 'New tax bill (IT + NI)', value: fmt(whatIfTax),     color: '#EF4444', bg: '#F9FAFB' },
+                          { label: 'Extra tax',    value: fmt(whatIfTax - totalLiability), color: whatIfNet > 50270 ? '#92400E' : '#065F46', bg: whatIfNet > 50270 ? '#FEF3C7' : '#F0FDF8' },
+                        ].map(item => (
                           <div key={item.label} style={{ background: item.bg, borderRadius: 10, padding: '14px 16px' }}>
                             <div style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 4 }}>{item.label}</div>
                             <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 18, color: item.color }}>{item.value}</div>
@@ -388,7 +413,7 @@ export default function QuartusPage() {
                       const factors: { factor: string; detail: string; points: number }[] = [];
                       const expenseRatio = totalIncome > 0 ? totalExpenses / totalIncome : 0;
                       if (expenseRatio > 0.8) { risk += 20; factors.push({ factor: 'High expense ratio', detail: `${Math.round(expenseRatio * 100)}% of income — above 80% threshold`, points: 20 }); }
-                      if (totalNet > basicRateLimit) { risk += 10; factors.push({ factor: 'Higher rate taxpayer', detail: 'Profits above £50,270 attract more scrutiny', points: 10 }); }
+                      if (totalNet > 50270) { risk += 10; factors.push({ factor: 'Higher rate taxpayer', detail: 'Profits above £50,270 attract more scrutiny', points: 10 }); }
                       const uncat = quarters.flatMap(q => q.transactions).filter((t: any) => !t.category || t.category === 'OTHER').length;
                       if (uncat > 0) { risk += 15; factors.push({ factor: 'Uncategorised transactions', detail: `${uncat} transaction${uncat > 1 ? 's' : ''} with no category`, points: 15 }); }
                       if (risk === 0) factors.push({ factor: 'No risk factors detected', detail: 'Your accounts look clean', points: 0 });
