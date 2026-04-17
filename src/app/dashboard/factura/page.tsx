@@ -267,6 +267,7 @@ export default function FacturaPage() {
       user_id: userId, type: 'INCOME',
       description: `Invoice ${invoice.invoice_number} — ${invoice.client_name}`,
       amount_gross: invoice.total, status: 'CONFIRMED',
+      category: 'Trading income',
       tax_year: taxYear, quarter, date: today.toISOString().split('T')[0],
     });
     await loadData();
