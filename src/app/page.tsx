@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Logo from '@/components/Logo';
 
 // ── Particle Canvas ───────────────────────────────────────────────────────────
 function ParticleCanvas() {
@@ -240,8 +239,8 @@ export default function LandingPage() {
       {/* ── NAV ── */}
       <nav style={{ position: 'sticky', top: 0, zIndex: 100, background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(10px)', borderBottom: '1px solid #F0F0F0' }}>
         <div style={{ maxWidth: 1160, margin: '0 auto', padding: '0 28px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ height: 44, overflow: 'hidden', display: 'flex', alignItems: 'center' }}>
-            <Logo height={160} />
+          <div style={{ height: 64, display: 'flex', alignItems: 'center' }}>
+            <img src="/logo.png" alt="MerxTax" style={{ height: 38, width: 'auto', display: 'block' }} />
           </div>
           <div className="wnav" style={{ display: 'flex', alignItems: 'center', gap: 36 }}>
             {[['How it works', '#modules'], ['Why MerxTax', '#why'], ['Pricing', '#pricing']].map(([l, h]) => (
@@ -417,7 +416,7 @@ export default function LandingPage() {
           <div style={{ maxWidth: 1160, margin: '0 auto' }}>
             <div className="fgrid" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 44, flexWrap: 'wrap', gap: 40 }}>
               <div style={{ flex: '0 0 240px' }}>
-                <Logo height={160} />
+                <img src="/logo.png" alt="MerxTax" style={{ height: 44, width: 'auto', display: 'block' }} />
                 <p style={{ fontSize: 13, color: '#ADADAD', lineHeight: 1.7, marginTop: 16, maxWidth: 220 }}>
                   Digital Tax. Your Language. Your Terms.<br />Merx Digital Solutions Ltd.
                 </p>
