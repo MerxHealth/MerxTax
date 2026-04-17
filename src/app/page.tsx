@@ -223,7 +223,7 @@ export default function LandingPage() {
           padding: 5px 16px; border-radius: 0 0 4px 4px; white-space: nowrap; }
 
         @media (max-width: 900px) {
-          .hlsize { font-size: clamp(52px, 13vw, 96px) !important; }
+          .hlsize { font-size: clamp(40px, 11vw, 80px) !important; }
           .hlayout { flex-direction: column !important; }
           .hpart { min-height: 260px !important; position: relative !important; }
           .pgrid { grid-template-columns: 1fr !important; }
@@ -240,7 +240,9 @@ export default function LandingPage() {
       {/* ── NAV ── */}
       <nav style={{ position: 'sticky', top: 0, zIndex: 100, background: 'rgba(255,255,255,0.97)', backdropFilter: 'blur(10px)', borderBottom: '1px solid #F0F0F0' }}>
         <div style={{ maxWidth: 1160, margin: '0 auto', padding: '0 28px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <Logo height={160} />
+          <div style={{ height: 44, overflow: 'hidden', display: 'flex', alignItems: 'center' }}>
+            <Logo height={160} />
+          </div>
           <div className="wnav" style={{ display: 'flex', alignItems: 'center', gap: 36 }}>
             {[['How it works', '#modules'], ['Why MerxTax', '#why'], ['Pricing', '#pricing']].map(([l, h]) => (
               <a key={l} href={h} style={{ fontSize: 13, fontWeight: 600, color: '#888', textDecoration: 'none' }}
@@ -268,9 +270,9 @@ export default function LandingPage() {
                 <span style={{ fontSize: 11, fontWeight: 600, color: '#065F46' }}>Live · Making Tax Digital compliant</span>
               </div>
               <h1 style={{ marginBottom: 44 }}>
-                <span className="hl hlsize" style={{ fontSize: 'clamp(60px, 9.5vw, 108px)' }}>accurate.</span>
-                <span className="hl hlsize" style={{ fontSize: 'clamp(60px, 9.5vw, 108px)' }}>compliant.</span>
-                <span className="hl hlsize" style={{ fontSize: 'clamp(60px, 9.5vw, 108px)' }}>sorted.</span>
+                <span className="hl hlsize" style={{ fontSize: 'clamp(44px, 7vw, 80px)' }}>accurate.</span>
+                <span className="hl hlsize" style={{ fontSize: 'clamp(44px, 7vw, 80px)' }}>compliant.</span>
+                <span className="hl hlsize" style={{ fontSize: 'clamp(44px, 7vw, 80px)' }}>sorted.</span>
               </h1>
               <p className="hs" style={{ fontSize: 17, color: '#5A6370', lineHeight: 1.78, maxWidth: 420, marginBottom: 40 }}>
                 The only MTD-native platform built for UK self-employed people. Six modules. Four capture channels. One AI tax advisor. No accountant required.
