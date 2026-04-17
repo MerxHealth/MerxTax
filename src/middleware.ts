@@ -1,47 +1,17 @@
-import { createServerClient } from '@supabase/ssr'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
+import type { NextRequest } from 'next/server'
 
-export async function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl
+export function middleware(request: NextRequest) {
+  const response = NextResponse.next()
 
-  if (!pathname.startsWith('/dashboard')) {
-    return NextResponse.next()
-  }
-
-  let response = NextResponse.next({
-    request: { headers: req.headers },
-  })
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return req.cookies.getAll()
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            req.cookies.set(name, value)
-            response = NextResponse.next({
-              request: { headers: req.headers },
-            })
-            response.cookies.set(name, value, options)
-          })
-        },
-      },
-    }
-  )
-
-  const { data: { user } } = await supabase.auth.getUser()
-
-  if (!user) {
-    return NextResponse.redirect(new URL('/login', req.url))
-  }
+  response.headers.set('X-Frame-Options', 'DENY')
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(self), geolocation=(self)')
 
   return response
 }
 
 export const config = {
-  matcher: ['/dashboard/:path*'],
+  matcher: '/(.*)',
 }
