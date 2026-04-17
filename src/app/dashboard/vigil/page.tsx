@@ -410,11 +410,16 @@ export default function VigilPage() {
                     const { incomeTax, class4NI, totalTax } = calcUKSelfEmployedTax(totalNet);
                     const poa = totalTax > 1000;
 
+                    // HMRC payment structure:
+                    // Balancing payment = full year tax bill (clears what you owe for the year)
+                    // 1st POA = 50% of current year bill, due same day as balancing (31 Jan)
+                    // 2nd POA = 50% of current year bill, due 31 July
+                    // So 31 Jan total = full tax + 50% = 1.5x the bill
                     const payments = [
-                      { label: 'Balancing Payment', date: `${y + 1}-01-31`, amount: poa ? totalTax / 2 : totalTax, note: 'Final settlement for the tax year' },
+                      { label: 'Balancing Payment',          date: `${y + 1}-01-31`, amount: totalTax,       note: `Settles your ${taxYear} tax bill in full` },
                       ...(poa ? [
-                        { label: 'First Payment on Account',  date: `${y + 1}-01-31`, amount: totalTax / 2, note: 'Advance payment towards next year' },
-                        { label: 'Second Payment on Account', date: `${y + 1}-07-31`, amount: totalTax / 2, note: 'Second advance payment' },
+                        { label: 'First Payment on Account',  date: `${y + 1}-01-31`, amount: totalTax / 2,  note: '50% advance towards next tax year — due same day' },
+                        { label: 'Second Payment on Account', date: `${y + 1}-07-31`, amount: totalTax / 2,  note: '50% advance towards next tax year' },
                       ] : []),
                     ];
 
@@ -437,6 +442,13 @@ export default function VigilPage() {
                             </div>
                           </div>
                           <div style={{ fontSize: 11, color: '#6B7280' }}>Based on {fmt(totalNet)} net profit — Income Tax after £12,570 allowance + Class 4 NI at 6%/2%</div>
+                          {poa && (
+                            <div style={{ marginTop: 12, padding: '10px 14px', background: '#FEF3C7', border: '1px solid #FCD34D', borderRadius: 8 }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: '#92400E', marginBottom: 2 }}>⚠ Cash needed on 31 January {y + 1}</div>
+                              <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 20, color: '#0A2E1E' }}>{fmt(totalTax * 1.5)}</div>
+                              <div style={{ fontSize: 11, color: '#92400E', marginTop: 2 }}>Balancing payment {fmt(totalTax)} + 1st Payment on Account {fmt(totalTax / 2)}</div>
+                            </div>
+                          )}
                         </div>
 
                         {payments.map((p, i) => {
