@@ -401,7 +401,7 @@ export default function FacturaPage() {
                     <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E' }}>Client Details</div>
                     {templates.length > 0 && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: 12, color: '#6B7280' }}>Load saved client:</span>
+                        <span style={{ fontSize: 12, color: '#6B7280' }}>Repeat client:</span>
                         <select
                           onChange={e => { const t = templates.find(t => t.id === e.target.value); if (t) loadTemplate(t); e.target.value = ''; }}
                           style={{ fontSize: 13, padding: '7px 12px', border: '1px solid #E5E7EB', borderRadius: 9, outline: 'none', color: '#0A2E1E', background: '#fff', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
