@@ -174,7 +174,7 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+export default nextConfig;
 
 // ============================================================
 // DEPLOYMENT CHECKLIST (Sprint 6)
