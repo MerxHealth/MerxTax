@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { ThemeProvider } from '@/lib/ThemeContext';
 import Sidebar from '@/components/Sidebar';
+import { calcUKSelfEmployedTax, calcUKTaxYear, calcUKQuarter } from '@/lib/taxUtils';
 
 type InvoiceItem = { id?: string; description: string; quantity: number; unit_price: number; total: number; };
 type Invoice = { id: string; invoice_number: string; client_name: string; client_email: string; client_address: string; issue_date: string; due_date: string; subtotal: number; tax_amount: number; total: number; status: string; notes: string; items?: InvoiceItem[]; };
@@ -14,9 +15,9 @@ function fmt(n: number) {
 }
 
 function statusColor(s: string) {
-  if (s === 'paid') return { bg: '#F0FDF8', color: '#065F46', border: '#BBF7E4' };
-  if (s === 'sent') return { bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' };
-  if (s === 'overdue') return { bg: '#FEF2F2', color: '#991B1B', border: '#FECACA' };
+  if (s === 'paid')      return { bg: '#F0FDF8', color: '#065F46', border: '#BBF7E4' };
+  if (s === 'sent')      return { bg: '#EFF6FF', color: '#1D4ED8', border: '#BFDBFE' };
+  if (s === 'overdue')   return { bg: '#FEF2F2', color: '#991B1B', border: '#FECACA' };
   if (s === 'cancelled') return { bg: '#F3F4F6', color: '#6B7280', border: '#E5E7EB' };
   return { bg: '#FFFBEB', color: '#92400E', border: '#FDE68A' };
 }
@@ -64,7 +65,7 @@ function printInvoice(invoice: Invoice, businessName: string, logoUrl: string, i
   </div>
   <table><thead><tr><th>Description</th><th>Qty</th><th>Unit price</th><th>Total</th></tr></thead><tbody>${itemRows}</tbody></table>
   <div class="totals">
-    <div class="total-row"><span>Subtotal</span><span>${fmt(invoice.subtotal)}</span></div>
+    <div class="total-row"><span>Subtotal (ex VAT)</span><span>${fmt(invoice.subtotal)}</span></div>
     ${invoice.tax_amount > 0 ? `<div class="total-row"><span>VAT</span><span>${fmt(invoice.tax_amount)}</span></div>` : ''}
     <div class="total-final"><span>Total</span><span>${fmt(invoice.total)}</span></div>
   </div>
@@ -95,13 +96,9 @@ export default function FacturaPage() {
   const [expenses, setExpenses] = useState(0);
   const [taxDue, setTaxDue] = useState(0);
   const [msg, setMsg] = useState('');
-
-  // Template save dialog state
   const [showTemplateDialog, setShowTemplateDialog] = useState(false);
   const [pendingSaveAsDraft, setPendingSaveAsDraft] = useState(false);
   const [templateName, setTemplateName] = useState('');
-
-  // Form fields
   const [clientName, setClientName] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [clientAddress, setClientAddress] = useState('');
@@ -134,20 +131,27 @@ export default function FacturaPage() {
     const { data: inv } = await supabase.from('invoices').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
     setInvoices(inv || []);
 
-    // Load full invoice templates (includes line items)
     const { data: tmpl } = await supabase.from('invoice_templates').select('*').eq('user_id', user.id).order('template_name');
     setTemplates((tmpl || []).map((t: any) => ({ ...t, line_items: t.line_items || [] })));
 
-    const today = new Date();
-    const y = today.getFullYear(), m = today.getMonth() + 1, d = today.getDate();
-    const after = m > 4 || (m === 4 && d >= 6);
-    const taxYear = after ? `${y}-${String(y + 1).slice(2)}` : `${y - 1}-${String(y).slice(2)}`;
-    const { data: txData } = await supabase.from('transactions').select('type, amount_gross, status').eq('tax_year', taxYear).eq('status', 'CONFIRMED');
-    const inc = (txData || []).filter((t: any) => t.type === 'INCOME').reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
+    // Tax calculation — current tax year confirmed transactions only
+    const taxYear = calcUKTaxYear();
+    const { data: txData } = await supabase
+      .from('transactions')
+      .select('type, amount_gross')
+      .eq('user_id', user.id)
+      .eq('tax_year', taxYear)
+      .eq('status', 'CONFIRMED');
+
+    const inc = (txData || []).filter((t: any) => t.type === 'INCOME') .reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
     const exp = (txData || []).filter((t: any) => t.type === 'EXPENSE').reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
     const net = inc - exp;
     setIncome(inc); setExpenses(exp); setNetProfit(net);
-    setTaxDue(Math.max(0, (Math.min(net, 50270) - 12570) * 0.2 + Math.max(0, net - 50270) * 0.4));
+
+    // Income Tax + Class 4 NI (Class 2 abolished April 2024)
+    const { totalTax } = calcUKSelfEmployedTax(net);
+    setTaxDue(totalTax);
+
     setLoading(false);
   }, []);
 
@@ -160,9 +164,9 @@ export default function FacturaPage() {
     setItems(updated);
   };
 
-  const subtotal = items.reduce((s, i) => s + (i.total || 0), 0);
+  const subtotal  = items.reduce((s, i) => s + (i.total || 0), 0);
   const taxAmount = subtotal * (vatRate / 100);
-  const total = subtotal + taxAmount;
+  const total     = subtotal + taxAmount;
 
   const nextInvoiceNumber = () => {
     if (invoices.length === 0) return 'INV-001';
@@ -174,15 +178,14 @@ export default function FacturaPage() {
     ? businessName.trim().split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase()
     : userName.trim().split(' ').map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'MT';
 
-  // Load a full template — pre-fills everything including line items
   const loadTemplate = (t: InvoiceTemplate) => {
     setClientName(t.client_name);
     setClientEmail(t.client_email || '');
     setClientAddress(t.client_address || '');
     setNotes(t.notes || '');
-    setIssueDate(new Date().toISOString().split('T')[0]); // always today
+    setIssueDate(new Date().toISOString().split('T')[0]);
     setDueDate('');
-    const lineItems = t.line_items && t.line_items.length > 0
+    const lineItems = t.line_items?.length > 0
       ? t.line_items.map(li => ({ description: li.description, quantity: li.quantity, unit_price: li.unit_price, total: li.quantity * li.unit_price }))
       : [{ description: '', quantity: 1, unit_price: 0, total: 0 }];
     setItems(lineItems);
@@ -199,14 +202,12 @@ export default function FacturaPage() {
     setIssueDate(new Date().toISOString().split('T')[0]);
     setDueDate(''); setNotes(''); setVatRate(0);
     setItems([{ description: '', quantity: 1, unit_price: 0, total: 0 }]);
-    setTemplateName('');
-    setMsg('');
+    setTemplateName(''); setMsg('');
   };
 
   const handleSaveClick = (asDraft: boolean) => {
     if (!clientName.trim()) { setMsg('Client name is required.'); return; }
     if (items.some(i => !i.description.trim())) { setMsg('All line items need a description.'); return; }
-    // Pre-suggest template name from client name
     setTemplateName(clientName.trim());
     setPendingSaveAsDraft(asDraft);
     setShowTemplateDialog(true);
@@ -216,7 +217,6 @@ export default function FacturaPage() {
     setShowTemplateDialog(false);
     setSaving(true); setMsg('');
 
-    // Save full invoice template if requested (includes line items)
     if (saveTemplate && templateName.trim()) {
       const exists = templates.find(t => t.template_name.toLowerCase() === templateName.trim().toLowerCase());
       if (!exists) {
@@ -253,23 +253,26 @@ export default function FacturaPage() {
   };
 
   const handleMarkPaid = async (invoice: Invoice) => {
+    // ACCOUNTING: Only net amount (ex-VAT) is the trader's income.
+    // VAT collected is a liability to HMRC — never posted as income.
     await supabase.from('invoices').update({ status: 'paid' }).eq('id', invoice.id);
-    const today = new Date();
-    const y = today.getFullYear(), mo = today.getMonth() + 1, d = today.getDate();
-    const after = mo > 4 || (mo === 4 && d >= 6);
-    const taxYear = after ? `${y}-${String(y + 1).slice(2)}` : `${y - 1}-${String(y).slice(2)}`;
-    const n = mo * 100 + d;
-    let quarter = 'Q4';
-    if (n >= 406 && n <= 705) quarter = 'Q1';
-    else if (n >= 706 && n <= 1005) quarter = 'Q2';
-    else if (n >= 1006 || n <= 105) quarter = 'Q3';
+
+    const today   = new Date();
+    const taxYear = calcUKTaxYear(today);
+    const quarter = calcUKQuarter(today);
+
     await supabase.from('transactions').insert({
-      user_id: userId, type: 'INCOME',
-      description: `Invoice ${invoice.invoice_number} — ${invoice.client_name}`,
-      amount_gross: invoice.total, status: 'CONFIRMED',
-      category: 'Trading income',
-      tax_year: taxYear, quarter, date: today.toISOString().split('T')[0],
+      user_id:      userId,
+      type:         'INCOME',
+      description:  `Invoice ${invoice.invoice_number} — ${invoice.client_name}`,
+      amount_gross: invoice.subtotal,  // NET ex-VAT — correct for Self Assessment
+      status:       'CONFIRMED',
+      category:     'Trading income',
+      tax_year:     taxYear,
+      quarter:      quarter,
+      date:         today.toISOString().split('T')[0],
     });
+
     await loadData();
     setSelected(prev => prev ? { ...prev, status: 'paid' } : null);
   };
@@ -287,39 +290,28 @@ export default function FacturaPage() {
       <div style={{ display: 'flex', minHeight: '100vh', background: '#EEF1F4', fontFamily: "'DM Sans', sans-serif" }}>
         <style>{`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Montserrat:wght@600;700;800&display=swap'); * { box-sizing: border-box; }`}</style>
 
-        {/* ── Template Save Dialog ── */}
         {showTemplateDialog && (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
             <div style={{ background: '#fff', borderRadius: 20, padding: '32px', maxWidth: 460, width: '100%' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, marginBottom: 20 }}>
                 <div style={{ width: 44, height: 44, borderRadius: '50%', background: '#F0FDF8', border: '1px solid #BBF7E4', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 20 }}>📋</div>
                 <div>
-                  <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 16, color: '#0A2E1E', marginBottom: 6 }}>Save as a template?</div>
-                  <div style={{ fontSize: 13, color: '#6B7280', lineHeight: 1.6 }}>Save this invoice as a template so you can pre-fill it instantly next time — client details, line items and all.</div>
+                  <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 16, color: '#0A2E1E', marginBottom: 6 }}>Save as a repeat client?</div>
+                  <div style={{ fontSize: 13, color: '#6B7280', lineHeight: 1.6 }}>Save the client details and line items as a template — next time it pre-fills instantly.</div>
                 </div>
               </div>
               <div style={{ marginBottom: 20 }}>
                 <label style={labelStyle}>Template name</label>
-                <input
-                  value={templateName}
-                  onChange={e => setTemplateName(e.target.value)}
-                  placeholder={`e.g. ${clientName} — Monthly`}
-                  style={inputStyle}
-                />
-                <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>This is just a label so you can find it quickly next time.</div>
+                <input value={templateName} onChange={e => setTemplateName(e.target.value)} placeholder={`e.g. ${clientName} — Monthly`} style={inputStyle} />
+                <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 6 }}>Give it a label so you can find it quickly next time.</div>
               </div>
               <div style={{ display: 'flex', gap: 10 }}>
-                <button
-                  onClick={() => handleSave(true)}
-                  disabled={!templateName.trim()}
-                  style={{ flex: 1, fontSize: 14, padding: '11px', borderRadius: 10, background: templateName.trim() ? '#01D98D' : '#E5E7EB', color: templateName.trim() ? '#0A2E1E' : '#9CA3AF', border: 'none', fontWeight: 700, cursor: templateName.trim() ? 'pointer' : 'not-allowed' }}
-                >
+                <button onClick={() => handleSave(true)} disabled={!templateName.trim()}
+                  style={{ flex: 1, fontSize: 14, padding: '11px', borderRadius: 10, background: templateName.trim() ? '#01D98D' : '#E5E7EB', color: templateName.trim() ? '#0A2E1E' : '#9CA3AF', border: 'none', fontWeight: 700, cursor: templateName.trim() ? 'pointer' : 'not-allowed' }}>
                   Save template &amp; invoice
                 </button>
-                <button
-                  onClick={() => handleSave(false)}
-                  style={{ flex: 1, fontSize: 14, padding: '11px', borderRadius: 10, background: '#F3F4F6', color: '#6B7280', border: 'none', fontWeight: 600, cursor: 'pointer' }}
-                >
+                <button onClick={() => handleSave(false)}
+                  style={{ flex: 1, fontSize: 14, padding: '11px', borderRadius: 10, background: '#F3F4F6', color: '#6B7280', border: 'none', fontWeight: 600, cursor: 'pointer' }}>
                   Just save invoice
                 </button>
               </div>
@@ -331,7 +323,6 @@ export default function FacturaPage() {
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
 
-          {/* Top bar */}
           {!isMobile && (
             <div style={{ background: '#fff', borderBottom: '0.5px solid #E5E7EB', padding: '0 28px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
               <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E' }}>
@@ -351,62 +342,55 @@ export default function FacturaPage() {
                 </div>
                 {view === 'list'
                   ? <button onClick={() => { resetForm(); setView('create'); }} style={{ fontSize: 12, padding: '7px 14px', borderRadius: 9, background: '#01D98D', color: '#0A2E1E', border: 'none', fontWeight: 700, cursor: 'pointer' }}>+ New</button>
-                  : <button onClick={() => setView('list')} style={{ fontSize: 12, padding: '7px 14px', borderRadius: 9, background: '#F3F4F6', color: '#0A2E1E', border: 'none', fontWeight: 600, cursor: 'pointer' }}>← Back</button>
-                }
+                  : <button onClick={() => setView('list')} style={{ fontSize: 12, padding: '7px 14px', borderRadius: 9, background: '#F3F4F6', color: '#0A2E1E', border: 'none', fontWeight: 600, cursor: 'pointer' }}>← Back</button>}
               </div>
             )}
 
-            {/* ── LIST ── */}
+            {/* LIST */}
             {view === 'list' && (
-              loading
-                ? <div style={{ color: '#9CA3AF', fontSize: 14 }}>Loading invoices...</div>
-                : invoices.length === 0
-                  ? (
-                    <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 16, padding: '48px 24px', textAlign: 'center' }}>
-                      <div style={{ fontSize: 32, marginBottom: 12 }}>🧾</div>
-                      <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 16, color: '#0A2E1E', marginBottom: 8 }}>No invoices yet</div>
-                      <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 24 }}>Create your first invoice and get paid faster.</div>
-                      <button onClick={() => { resetForm(); setView('create'); }} style={{ fontSize: 13, padding: '10px 24px', borderRadius: 10, background: '#01D98D', color: '#0A2E1E', border: 'none', fontWeight: 700, cursor: 'pointer' }}>+ Create invoice</button>
-                    </div>
-                  )
-                  : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {invoices.map(inv => {
-                        const sc = statusColor(inv.status);
-                        return (
-                          <div key={inv.id} onClick={() => openDetail(inv)} style={{ background: '#fff', border: '0.5px solid #E5E7EB', borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', gap: 12 }}>
-                            <div style={{ minWidth: 0 }}>
-                              <div style={{ fontWeight: 700, fontSize: 14, color: '#0A2E1E', marginBottom: 2 }}>{inv.invoice_number}</div>
-                              <div style={{ fontSize: 12, color: '#6B7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{inv.client_name}</div>
-                              <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{inv.issue_date}</div>
-                            </div>
-                            <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                              <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 16, color: '#0A2E1E', marginBottom: 6 }}>{fmt(inv.total)}</div>
-                              <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: sc.bg, color: sc.color, border: `1px solid ${sc.border}` }}>{inv.status.toUpperCase()}</span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )
+              loading ? <div style={{ color: '#9CA3AF', fontSize: 14 }}>Loading invoices...</div>
+              : invoices.length === 0 ? (
+                <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 16, padding: '48px 24px', textAlign: 'center' }}>
+                  <div style={{ fontSize: 32, marginBottom: 12 }}>🧾</div>
+                  <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 16, color: '#0A2E1E', marginBottom: 8 }}>No invoices yet</div>
+                  <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 24 }}>Create your first invoice and get paid faster.</div>
+                  <button onClick={() => { resetForm(); setView('create'); }} style={{ fontSize: 13, padding: '10px 24px', borderRadius: 10, background: '#01D98D', color: '#0A2E1E', border: 'none', fontWeight: 700, cursor: 'pointer' }}>+ Create invoice</button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {invoices.map(inv => {
+                    const sc = statusColor(inv.status);
+                    return (
+                      <div key={inv.id} onClick={() => openDetail(inv)} style={{ background: '#fff', border: '0.5px solid #E5E7EB', borderRadius: 12, padding: '16px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', gap: 12 }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 700, fontSize: 14, color: '#0A2E1E', marginBottom: 2 }}>{inv.invoice_number}</div>
+                          <div style={{ fontSize: 12, color: '#6B7280', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{inv.client_name}</div>
+                          <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{inv.issue_date}</div>
+                        </div>
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 16, color: '#0A2E1E', marginBottom: 6 }}>{fmt(inv.total)}</div>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: sc.bg, color: sc.color, border: `1px solid ${sc.border}` }}>{inv.status.toUpperCase()}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )
             )}
 
-            {/* ── CREATE ── */}
+            {/* CREATE */}
             {view === 'create' && (
               <div style={{ maxWidth: 720, margin: '0 auto' }}>
                 {msg && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 10, padding: '10px 16px', fontSize: 13, color: '#991B1B', marginBottom: 16 }}>{msg}</div>}
 
-                {/* Client details card */}
                 <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 16, padding: '24px', marginBottom: 16 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
                     <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E' }}>Client Details</div>
                     {templates.length > 0 && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ fontSize: 12, color: '#6B7280' }}>Repeat client:</span>
-                        <select
-                          onChange={e => { const t = templates.find(t => t.id === e.target.value); if (t) loadTemplate(t); e.target.value = ''; }}
-                          style={{ fontSize: 13, padding: '7px 12px', border: '1px solid #E5E7EB', borderRadius: 9, outline: 'none', color: '#0A2E1E', background: '#fff', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}
-                        >
+                        <select onChange={e => { const t = templates.find(t => t.id === e.target.value); if (t) loadTemplate(t); e.target.value = ''; }}
+                          style={{ fontSize: 13, padding: '7px 12px', border: '1px solid #E5E7EB', borderRadius: 9, outline: 'none', color: '#0A2E1E', background: '#fff', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>
                           <option value="">— select client —</option>
                           {templates.map(t => <option key={t.id} value={t.id}>{t.template_name}</option>)}
                         </select>
@@ -427,7 +411,6 @@ export default function FacturaPage() {
                   </div>
                 </div>
 
-                {/* Line items card */}
                 <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 16, padding: '24px', marginBottom: 16 }}>
                   <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E', marginBottom: 20 }}>Line Items</div>
                   {items.map((item, idx) => (
@@ -448,14 +431,14 @@ export default function FacturaPage() {
                       <input type="number" min="0" max="100" value={vatRate} onChange={e => setVatRate(parseFloat(e.target.value) || 0)} style={{ width: 80, padding: '7px 10px', fontSize: 13, border: '1px solid #E5E7EB', borderRadius: 8, outline: 'none', textAlign: 'right' }} />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                      <div style={{ fontSize: 13, color: '#6B7280' }}>Subtotal: <strong>{fmt(subtotal)}</strong></div>
+                      <div style={{ fontSize: 13, color: '#6B7280' }}>Subtotal (ex VAT): <strong>{fmt(subtotal)}</strong></div>
                       {vatRate > 0 && <div style={{ fontSize: 13, color: '#6B7280' }}>VAT ({vatRate}%): <strong>{fmt(taxAmount)}</strong></div>}
                       <div style={{ fontSize: 18, fontWeight: 800, color: '#0A2E1E', fontFamily: "'Montserrat', sans-serif" }}>Total: {fmt(total)}</div>
+                      {vatRate > 0 && <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>Income recorded in REDITUS: {fmt(subtotal)} (ex VAT)</div>}
                     </div>
                   </div>
                 </div>
 
-                {/* Notes card */}
                 <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 16, padding: '24px', marginBottom: 24 }}>
                   <label style={labelStyle}>Notes (optional)</label>
                   <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Payment terms, bank details, thank you message..." rows={3} style={{ ...inputStyle, resize: 'vertical' }} />
@@ -472,7 +455,7 @@ export default function FacturaPage() {
               </div>
             )}
 
-            {/* ── DETAIL ── */}
+            {/* DETAIL */}
             {view === 'detail' && selected && (
               <div style={{ maxWidth: 720, margin: '0 auto' }}>
                 <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 16, padding: '20px 24px', marginBottom: 16, display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
@@ -526,7 +509,7 @@ export default function FacturaPage() {
                     </table>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
-                    <div style={{ fontSize: 13, color: '#6B7280' }}>Subtotal: <strong>{fmt(selected.subtotal)}</strong></div>
+                    <div style={{ fontSize: 13, color: '#6B7280' }}>Subtotal (ex VAT): <strong>{fmt(selected.subtotal)}</strong></div>
                     {selected.tax_amount > 0 && <div style={{ fontSize: 13, color: '#6B7280' }}>VAT: <strong>{fmt(selected.tax_amount)}</strong></div>}
                     <div style={{ fontSize: 20, fontWeight: 800, color: '#0A2E1E', fontFamily: "'Montserrat', sans-serif", marginTop: 4 }}>{fmt(selected.total)}</div>
                   </div>
