@@ -4,20 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { ThemeProvider } from '@/lib/ThemeContext';
 import Sidebar from '@/components/Sidebar';
-
-function getTaxYear(date: Date): string {
-  const y = date.getFullYear(), m = date.getMonth() + 1, d = date.getDate();
-  const after = m > 4 || (m === 4 && d >= 6);
-  return after ? `${y}-${String(y + 1).slice(2)}` : `${y - 1}-${String(y).slice(2)}`;
-}
-
-function getHMRCQuarter(date: Date): 'Q1' | 'Q2' | 'Q3' | 'Q4' {
-  const m = date.getMonth() + 1, d = date.getDate(), n = m * 100 + d;
-  if (n >= 406 && n <= 705) return 'Q1';
-  if (n >= 706 && n <= 1005) return 'Q2';
-  if (n >= 1006 || n <= 105) return 'Q3';
-  return 'Q4';
-}
+import { calcUKSelfEmployedTax, calcUKTaxYear, calcUKQuarter } from '@/lib/taxUtils';
 
 function fmt(n: number) {
   return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP', maximumFractionDigits: 0 }).format(n);
@@ -65,7 +52,7 @@ function AddTransactionModal({ onClose, onSaved }: { onClose: () => void; onSave
     const { error: err } = await supabase.from('transactions').insert({
       user_id: user.id, type, description: description.trim(),
       amount_gross: Number(amount), category, date,
-      quarter: getHMRCQuarter(txDate), tax_year: getTaxYear(txDate), status: 'CONFIRMED',
+      quarter: calcUKQuarter(txDate), tax_year: calcUKTaxYear(txDate), status: 'CONFIRMED',
     });
     setSaving(false);
     if (err) { setError('Failed to save. Please try again.'); return; }
@@ -137,8 +124,8 @@ function AddTransactionModal({ onClose, onSaved }: { onClose: () => void; onSave
 export default function DashboardPage() {
   const supabase = createClient();
   const today = new Date();
-  const currentTaxYear = getTaxYear(today);
-  const currentQuarter = getHMRCQuarter(today);
+  const currentTaxYear = calcUKTaxYear(today);
+  const currentQuarter = calcUKQuarter(today);
 
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState('');
@@ -168,25 +155,30 @@ export default function DashboardPage() {
     const { data: txData } = await supabase.from('transactions').select('type, amount_gross, status, quarter').eq('tax_year', currentTaxYear);
     const { data: subData } = await supabase.from('quarterly_submissions').select('quarter, status').eq('tax_year', currentTaxYear);
     const confirmed = (txData || []).filter((t: any) => t.status === 'CONFIRMED');
-    const drafts = (txData || []).filter((t: any) => t.status !== 'CONFIRMED');
-    const inc = confirmed.filter((t: any) => t.type === 'INCOME').reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
+    const drafts    = (txData || []).filter((t: any) => t.status !== 'CONFIRMED');
+    const inc = confirmed.filter((t: any) => t.type === 'INCOME') .reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
     const exp = confirmed.filter((t: any) => t.type === 'EXPENSE').reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
     const net = inc - exp;
-    const tax = Math.max(0, (Math.min(net, 50270) - 12570) * 0.2 + Math.max(0, net - 50270) * 0.4);
-    setIncome(inc); setExpenses(exp); setNetProfit(net); setTaxDue(tax);
+
+    // Income Tax + Class 4 NI (Class 2 abolished April 2024)
+    const { totalTax } = calcUKSelfEmployedTax(net);
+
+    setIncome(inc); setExpenses(exp); setNetProfit(net); setTaxDue(totalTax);
     setTotalTx((txData || []).length); setDraftTx(drafts.length);
+
     const deadlines = getQuarterDeadlines(currentTaxYear);
     const statusMap: Record<string, string> = {};
     const readinessMap: Record<string, number> = {};
     (['Q1','Q2','Q3','Q4'] as const).forEach(q => {
       const sub = (subData || []).find((s: any) => s.quarter === q);
       statusMap[q] = sub?.status || 'pending';
-      const qTx = (txData || []).filter((t: any) => t.quarter === q);
+      const qTx   = (txData || []).filter((t: any) => t.quarter === q);
       const qConf = qTx.filter((t: any) => t.status === 'CONFIRMED');
       readinessMap[q] = qTx.length === 0 ? 0 : Math.round((qConf.length / qTx.length) * 100);
     });
     setQuarterStatuses(statusMap);
     setQuarterReadiness(readinessMap);
+
     let score = 0;
     if (connData.connected) score += 25;
     if (connData.vrn) score += 15;
@@ -194,6 +186,7 @@ export default function DashboardPage() {
     if (drafts.length === 0 && (txData || []).length > 0) score += 20;
     if ((txData || []).filter((t: any) => t.quarter === currentQuarter).length > 0) score += 20;
     setComplianceScore(Math.min(100, score));
+
     if (!connData.connected) setNextAction('Connect your HMRC account to unlock your full compliance picture.');
     else if (drafts.length > 0) setNextAction(`You have ${drafts.length} draft transaction${drafts.length > 1 ? 's' : ''} to confirm before your next submission.`);
     else if ((txData || []).length === 0) setNextAction('Add your first transaction — it only takes 10 seconds.');
@@ -223,7 +216,6 @@ export default function DashboardPage() {
   };
   const scoreColor = complianceScore >= 80 ? '#01D98D' : complianceScore >= 50 ? '#F59E0B' : '#EF4444';
 
-  // Onboarding steps for new users
   const onboardingSteps = [
     { num: 1, title: 'Connect your HMRC account', desc: 'Required for MTD submissions and compliance tracking', done: connected, href: '/api/auth/hmrc', action: 'Connect →' },
     { num: 2, title: 'Add your first transaction', desc: 'Log income or an expense to start tracking', done: false, action: 'Add →', onClick: () => setShowAddModal(true) },
@@ -231,7 +223,7 @@ export default function DashboardPage() {
     { num: 4, title: 'Ask LUMEN a question', desc: 'Your AI tax advisor is ready — try it now', done: false, href: '/dashboard/lumen', action: 'Ask →' },
   ];
   const stepsComplete = onboardingSteps.filter(s => s.done).length;
-  const showOnboarding = totalTx === 0; // show onboarding by default until data confirms otherwise
+  const showOnboarding = totalTx === 0;
 
   return (
     <ThemeProvider>
@@ -241,7 +233,8 @@ export default function DashboardPage() {
           * { box-sizing: border-box; }
           .dash-topbar { display: flex; }
           .stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
-          .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 14px; }          .quarter-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 18px; }
+          .main-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 14px; }
+          .quarter-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 18px; }
           .dash-content { flex: 1; padding: 12px 28px 0; overflow-y: auto; }
           @media (max-width: 767px) {
             .dash-topbar { display: none !important; }
@@ -271,10 +264,8 @@ export default function DashboardPage() {
 
           <div className="dash-content">
 
-            {/* === NEW USER: onboarding replaces the normal dashboard grid === */}
             {showOnboarding ? (
               <div className="main-grid">
-                {/* Onboarding checklist */}
                 <div style={{ background: '#fff', border: '0.5px solid #E5E7EB', borderRadius: 12, padding: '20px 22px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                     <div>
@@ -305,8 +296,6 @@ export default function DashboardPage() {
                     </div>
                   ))}
                 </div>
-
-                {/* Compliance widget */}
                 <div style={{ background: '#fff', border: '0.5px solid #E5E7EB', borderRadius: 12, padding: '20px 22px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#0A2E1E', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 16, alignSelf: 'flex-start' }}>Compliance</div>
                   <div style={{ width: 84, height: 84, borderRadius: '50%', border: `6px solid #EF4444`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
@@ -322,7 +311,6 @@ export default function DashboardPage() {
               </div>
             ) : (
               <>
-                {/* === RETURNING USER: normal dashboard === */}
                 {!loading && (
                   <div style={{ background: '#F0FDF8', border: '1px solid #BBF7E4', borderRadius: 10, padding: '9px 16px', display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#01D98D', flexShrink: 0 }} />
@@ -333,7 +321,7 @@ export default function DashboardPage() {
                 <div className="stat-grid">
                   {[
                     { label: 'Net profit', value: fmt(netProfit), sub: `${currentTaxYear} tax year`, color: '#0A2E1E' },
-                    { label: 'Tax to set aside', value: fmt(taxDue), sub: 'Est. January bill', color: '#D97706' },
+                    { label: 'Tax to set aside', value: fmt(taxDue), sub: 'Income Tax + Class 4 NI', color: '#D97706' },
                     { label: 'Transactions', value: totalTx.toString(), sub: draftTx > 0 ? `${draftTx} drafts pending` : 'All confirmed', color: '#0A2E1E' },
                     { label: 'Compliance', value: complianceScore.toString(), sub: complianceScore >= 80 ? 'Good standing' : 'Needs attention', color: scoreColor },
                   ].map(item => (
@@ -347,7 +335,6 @@ export default function DashboardPage() {
 
                 <div className="main-grid">
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    {/* Quick Add — separate card on top */}
                     <div style={{ background: '#fff', border: '0.5px solid #E5E7EB', borderRadius: 12, padding: '16px 18px' }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: '#0A2E1E', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 }}>Quick add</div>
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
@@ -364,7 +351,6 @@ export default function DashboardPage() {
                         ))}
                       </div>
                     </div>
-                    {/* Quarter Status — separate card below */}
                     <div style={{ background: '#fff', border: '0.5px solid #E5E7EB', borderRadius: 12, padding: '16px 18px' }}>
                       <div style={{ fontSize: 11, fontWeight: 700, color: '#0A2E1E', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 12 }}>Quarter status — {currentTaxYear}</div>
                       <div className="quarter-grid">

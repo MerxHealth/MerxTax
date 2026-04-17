@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { ThemeProvider } from '@/lib/ThemeContext';
 import Sidebar from '@/components/Sidebar';
+import { calcUKSelfEmployedTax, calcUKTaxYear, calcUKQuarter } from '@/lib/taxUtils';
 
 type Transaction = {
   id: string; user_id: string; date: string; type: 'INCOME' | 'EXPENSE';
@@ -42,20 +43,6 @@ const VAT_RATES = [
   { value: 'STANDARD',       label: '20% Standard Rate',   tooltip: 'Most goods and services in the UK' },
 ];
 
-function getTaxYear(date: Date): string {
-  const y = date.getFullYear(), m = date.getMonth() + 1, d = date.getDate();
-  const after = m > 4 || (m === 4 && d >= 6);
-  return after ? `${y}-${String(y + 1).slice(2)}` : `${y - 1}-${String(y).slice(2)}`;
-}
-
-function getHMRCQuarter(date: Date): 'Q1' | 'Q2' | 'Q3' | 'Q4' {
-  const m = date.getMonth() + 1, d = date.getDate(), n = m * 100 + d;
-  if (n >= 406 && n <= 705) return 'Q1';
-  if (n >= 706 && n <= 1005) return 'Q2';
-  if (n >= 1006 || n <= 105) return 'Q3';
-  return 'Q4';
-}
-
 function fmt(n: number): string {
   return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(n);
 }
@@ -91,8 +78,8 @@ function Tooltip({ text }: { text: string }) {
 export default function ReditusPage() {
   const supabase = createClient();
   const today = new Date();
-  const currentTaxYear = getTaxYear(today);
-  const currentQuarter = getHMRCQuarter(today);
+  const currentTaxYear = calcUKTaxYear(today);
+  const currentQuarter = calcUKQuarter(today);
 
   const [isMobile, setIsMobile] = useState(false);
   const [userName, setUserName] = useState('');
@@ -147,15 +134,18 @@ export default function ReditusPage() {
     if (!error && data) {
       setTransactions(data as Transaction[]);
       const confirmed = (data as Transaction[]).filter(t => t.status === 'CONFIRMED');
-      const drafts = (data as Transaction[]).filter(t => t.status !== 'CONFIRMED');
-      const inc = confirmed.filter(t => t.type === 'INCOME').reduce((s, t) => s + Number(t.amount_gross), 0);
+      const drafts    = (data as Transaction[]).filter(t => t.status !== 'CONFIRMED');
+      const inc = confirmed.filter(t => t.type === 'INCOME') .reduce((s, t) => s + Number(t.amount_gross), 0);
       const exp = confirmed.filter(t => t.type === 'EXPENSE').reduce((s, t) => s + Number(t.amount_gross), 0);
       const net = inc - exp;
-      const tax = Math.max(0, (Math.min(net, 50270) - 12570) * 0.2 + Math.max(0, net - 50270) * 0.4);
+
+      // Income Tax + Class 4 NI (Class 2 abolished April 2024)
+      const { totalTax } = calcUKSelfEmployedTax(net);
+
       setSidebarIncome(inc);
       setSidebarExpenses(exp);
       setSidebarNetProfit(net);
-      setSidebarTaxDue(tax);
+      setSidebarTaxDue(totalTax);
       setDraftBadge(drafts.length);
     }
     setLoading(false);
@@ -169,26 +159,28 @@ export default function ReditusPage() {
     return true;
   });
 
-  const totalIncome  = filtered.filter(t => t.type === 'INCOME').reduce((s, t) => s + Number(t.amount_gross), 0);
+  const totalIncome  = filtered.filter(t => t.type === 'INCOME') .reduce((s, t) => s + Number(t.amount_gross), 0);
   const totalExpense = filtered.filter(t => t.type === 'EXPENSE').reduce((s, t) => s + Number(t.amount_gross), 0);
   const netProfit    = totalIncome - totalExpense;
 
   const quarterData = ['Q1','Q2','Q3','Q4'].map(q => {
-    const qTx = transactions.filter(t => t.quarter === q);
-    const inc = qTx.filter(t => t.type === 'INCOME').reduce((s, t) => s + Number(t.amount_gross), 0);
-    const exp = qTx.filter(t => t.type === 'EXPENSE').reduce((s, t) => s + Number(t.amount_gross), 0);
+    const qTx  = transactions.filter(t => t.quarter === q);
+    const inc  = qTx.filter(t => t.type === 'INCOME') .reduce((s, t) => s + Number(t.amount_gross), 0);
+    const exp  = qTx.filter(t => t.type === 'EXPENSE').reduce((s, t) => s + Number(t.amount_gross), 0);
     const status = qTx.length === 0 ? 'Not Started' : qTx.some(t => t.status === 'CONFIRMED') ? 'In Progress' : 'Draft';
     return { quarter: q, income: inc, expense: exp, net: inc - exp, status, days: daysLeft(q, filterTaxYear) };
   });
 
-  const annualIncome  = transactions.filter(t => t.type === 'INCOME').reduce((s, t) => s + Number(t.amount_gross), 0);
+  const annualIncome  = transactions.filter(t => t.type === 'INCOME') .reduce((s, t) => s + Number(t.amount_gross), 0);
   const annualExpense = transactions.filter(t => t.type === 'EXPENSE').reduce((s, t) => s + Number(t.amount_gross), 0);
   const annualNet     = annualIncome - annualExpense;
-  const estTax        = Math.max(0, (annualNet - 12570) * 0.2);
+
+  // P&L estimated tax — Income Tax + Class 4 NI
+  const { incomeTax: estIncomeTax, class4NI: estClass4, totalTax: estTotalTax } = calcUKSelfEmployedTax(annualNet);
 
   const categoryPL = HMRC_CATEGORIES.map(cat => {
     const catTx = transactions.filter(t => t.category === cat.value);
-    const total = catTx.reduce((s, t) => s + (t.type === 'INCOME' ? Number(t.amount_gross) : -Number(t.amount_gross)), 0);
+    const total  = catTx.reduce((s, t) => s + (t.type === 'INCOME' ? Number(t.amount_gross) : -Number(t.amount_gross)), 0);
     return { ...cat, total, count: catTx.length };
   }).filter(c => c.count > 0);
 
@@ -209,8 +201,8 @@ export default function ReditusPage() {
       vat_amount: parseFloat(vat.toFixed(2)), vat_rate: form.vat_rate,
       description: form.description, category: form.category,
       income_source: form.type === 'INCOME' ? form.income_source : null,
-      accounting_method: 'CASH', tax_year: getTaxYear(dateObj),
-      quarter: getHMRCQuarter(dateObj), status: form.status, notes: form.notes || null,
+      accounting_method: 'CASH', tax_year: calcUKTaxYear(dateObj),
+      quarter: calcUKQuarter(dateObj), status: form.status, notes: form.notes || null,
     };
     const { error } = editingId
       ? await supabase.from('transactions').update(row).eq('id', editingId)
@@ -258,27 +250,15 @@ export default function ReditusPage() {
           .fab:hover { transform: scale(1.08); }
         `}</style>
 
-        <Sidebar
-          active="REDITUS"
-          userName={userName}
-          plan={plan}
-          netProfit={sidebarNetProfit}
-          income={sidebarIncome}
-          expenses={sidebarExpenses}
-          taxDue={sidebarTaxDue}
-          badge={draftBadge > 0 ? { REDITUS: draftBadge } : {}}
-        />
+        <Sidebar active="REDITUS" userName={userName} plan={plan} netProfit={sidebarNetProfit} income={sidebarIncome} expenses={sidebarExpenses} taxDue={sidebarTaxDue} badge={draftBadge > 0 ? { REDITUS: draftBadge } : {}} />
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
 
-          {/* Top bar — desktop only */}
           {!isMobile && (
             <div style={{ background: '#fff', borderBottom: '0.5px solid #E5E7EB', padding: '0 28px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-                <span style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E' }}>
-                  REDITUS <span style={{ color: '#01D98D' }}>|</span> Income &amp; Expenses
-                </span>
-              </div>
+              <span style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E' }}>
+                REDITUS <span style={{ color: '#01D98D' }}>|</span> Income &amp; Expenses
+              </span>
               <div style={{ display: 'flex', gap: 0, background: '#F3F4F6', borderRadius: 8, padding: 3 }}>
                 <button style={navTab(screen === 'ledger')}   onClick={() => setScreen('ledger')}>Ledger</button>
                 <button style={navTab(screen === 'quarters')} onClick={() => setScreen('quarters')}>Quarters</button>
@@ -287,7 +267,6 @@ export default function ReditusPage() {
             </div>
           )}
 
-          {/* Mobile tab bar */}
           {isMobile && (
             <div style={{ background: '#fff', borderBottom: '1px solid #E5E7EB', padding: '10px 16px', display: 'flex', gap: 0, justifyContent: 'center' }}>
               <div style={{ display: 'flex', background: '#F3F4F6', borderRadius: 8, padding: 3 }}>
@@ -426,13 +405,29 @@ export default function ReditusPage() {
                     <div style={summaryCard('#EF4444')}><div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>Annual Expenses</div><div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 22, color: '#EF4444', marginTop: 4 }}>{fmt(annualExpense)}</div></div>
                     <div style={summaryCard('#0A2E1E')}><div style={{ fontSize: 11, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>Net Profit</div><div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 22, color: '#0A2E1E', marginTop: 4 }}>{fmt(annualNet)}</div></div>
                   </div>
-                  <div style={{ background: '#F0FDF8', border: '1px solid #BBF7E4', borderRadius: 12, padding: '16px 20px', marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#065F46', textTransform: 'uppercase', letterSpacing: 0.5 }}>Estimated Income Tax (basic rate)</div>
-                      <div style={{ fontSize: 11, color: '#6B7280', marginTop: 2 }}>£12,570 personal allowance at 20% — indicative only</div>
+
+                  {/* Correct tax breakdown — Income Tax + Class 4 NI */}
+                  <div style={{ background: '#F0FDF8', border: '1px solid #BBF7E4', borderRadius: 12, padding: '16px 20px', marginBottom: 20 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#065F46', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>Estimated Tax Liability</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 12 }}>
+                      <div>
+                        <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 2 }}>Income Tax</div>
+                        <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 20, color: '#0A2E1E' }}>{fmt(estIncomeTax)}</div>
+                        <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 2 }}>After £12,570 personal allowance at 20%</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 2 }}>Class 4 National Insurance</div>
+                        <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 20, color: '#0A2E1E' }}>{fmt(estClass4)}</div>
+                        <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 2 }}>6% on profits £12,570–£50,270 / 2% above</div>
+                      </div>
+                      <div style={{ borderTop: isMobile ? '1px solid #BBF7E4' : 'none', paddingTop: isMobile ? 12 : 0 }}>
+                        <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 2 }}>Total estimated liability</div>
+                        <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 24, color: '#0A2E1E' }}>{fmt(estTotalTax)}</div>
+                        <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 2 }}>Indicative — consult your accountant</div>
+                      </div>
                     </div>
-                    <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 24, color: '#0A2E1E' }}>{fmt(estTax)}</div>
                   </div>
+
                   <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #E5E7EB', overflow: 'hidden' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 110px', padding: '10px 16px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                       <span>Category</span><span>Transactions</span><span>Total</span>
@@ -452,13 +447,11 @@ export default function ReditusPage() {
           </div>
         </div>
 
-        {/* FAB */}
         <button className="fab" onClick={() => { setForm(emptyForm); setEditingId(null); setShowModal(true); }}
           style={{ position: 'fixed', bottom: 28, right: 28, width: 56, height: 56, borderRadius: '50%', background: '#01D98D', color: '#fff', border: 'none', fontSize: 28, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 20px rgba(1,217,141,0.4)', zIndex: 200 }}>
           +
         </button>
 
-        {/* Modal */}
         {showModal && (
           <div onClick={e => { if (e.target === e.currentTarget) { setShowModal(false); setForm(emptyForm); setEditingId(null); } }}
             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 300, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>

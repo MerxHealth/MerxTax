@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { ThemeProvider } from '@/lib/ThemeContext';
 import Sidebar from '@/components/Sidebar';
+import { calcUKSelfEmployedTax, calcUKTaxYear } from '@/lib/taxUtils';
 
 type QuarterStatus = {
   quarter: string; label: string; periodFrom: string; periodTo: string;
@@ -13,12 +14,6 @@ type QuarterStatus = {
 };
 
 type Screen = 'command' | 'penalties' | 'readiness' | 'payments';
-
-function getTaxYear(date: Date): string {
-  const y = date.getFullYear(), m = date.getMonth() + 1, d = date.getDate();
-  const after = m > 4 || (m === 4 && d >= 6);
-  return after ? `${y}-${String(y + 1).slice(2)}` : `${y - 1}-${String(y).slice(2)}`;
-}
 
 function fmt(n: number): string {
   return new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(n);
@@ -39,15 +34,15 @@ function getQuarterMeta(taxYear: string) {
 }
 
 function getStatusColor(daysLeft: number): string {
-  if (daysLeft < 0) return '#EF4444';
+  if (daysLeft < 0)  return '#EF4444';
   if (daysLeft < 14) return '#EF4444';
   if (daysLeft < 30) return '#F59E0B';
   return '#01D98D';
 }
 
 function getStatusLabel(daysLeft: number, submitted: boolean): string {
-  if (submitted) return 'Filed';
-  if (daysLeft < 0) return 'Overdue';
+  if (submitted)     return 'Filed';
+  if (daysLeft < 0)  return 'Overdue';
   if (daysLeft < 14) return 'Urgent';
   if (daysLeft < 30) return 'Coming up';
   return 'On track';
@@ -55,10 +50,10 @@ function getStatusLabel(daysLeft: number, submitted: boolean): string {
 
 function getEncouragement(score: number): string {
   if (score === 100) return 'Your accounts are in better shape than most businesses twice your size.';
-  if (score >= 80) return 'You are doing brilliantly. Just a few things to tidy up.';
-  if (score >= 60) return 'Good progress. You are ahead of most people at this stage.';
-  if (score >= 40) return 'You have made a start. Every transaction you confirm brings you closer.';
-  if (score >= 20) return 'You have taken the first step. That already puts you ahead of doing nothing.';
+  if (score >= 80)   return 'You are doing brilliantly. Just a few things to tidy up.';
+  if (score >= 60)   return 'Good progress. You are ahead of most people at this stage.';
+  if (score >= 40)   return 'You have made a start. Every transaction you confirm brings you closer.';
+  if (score >= 20)   return 'You have taken the first step. That already puts you ahead of doing nothing.';
   return 'Connect HMRC and add your first transactions to get started. You can do this.';
 }
 
@@ -79,7 +74,7 @@ function getNextAction(quarters: QuarterStatus[], connected: boolean): string {
 export default function VigilPage() {
   const supabase = createClient();
   const today = new Date();
-  const currentTaxYear = getTaxYear(today);
+  const currentTaxYear = calcUKTaxYear(today);
 
   const [isMobile, setIsMobile] = useState(false);
   const [userName, setUserName] = useState('');
@@ -112,11 +107,13 @@ export default function VigilPage() {
       setUserName(profile?.full_name || '');
       setPlan(profile?.plan?.toUpperCase() || 'SOLO');
       const { data: txData } = await supabase.from('transactions').select('type, amount_gross, status').eq('tax_year', currentTaxYear).eq('status', 'CONFIRMED');
-      const inc = (txData || []).filter((t: any) => t.type === 'INCOME').reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
+      const inc = (txData || []).filter((t: any) => t.type === 'INCOME') .reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
       const exp = (txData || []).filter((t: any) => t.type === 'EXPENSE').reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
       const net = inc - exp;
       setSidebarIncome(inc); setSidebarExpenses(exp); setSidebarNetProfit(net);
-      setSidebarTaxDue(Math.max(0, (Math.min(net, 50270) - 12570) * 0.2 + Math.max(0, net - 50270) * 0.4));
+      // Income Tax + Class 4 NI (Class 2 abolished April 2024)
+      const { totalTax } = calcUKSelfEmployedTax(net);
+      setSidebarTaxDue(totalTax);
     }
     loadUser();
   }, []);
@@ -130,14 +127,16 @@ export default function VigilPage() {
     const { data: subData } = await supabase.from('quarterly_submissions').select('quarter, status').eq('tax_year', taxYear);
     const meta = getQuarterMeta(taxYear);
     const built: QuarterStatus[] = meta.map(m => {
-      const qTx = (txData || []).filter((t: any) => t.quarter === m.quarter);
+      const qTx      = (txData || []).filter((t: any) => t.quarter === m.quarter);
       const confirmed = qTx.filter((t: any) => t.status === 'CONFIRMED');
-      const income = confirmed.filter((t: any) => t.type === 'INCOME').reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
-      const expenses = confirmed.filter((t: any) => t.type === 'EXPENSE').reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
-      const net = income - expenses;
-      const sub = (subData || []).find((s: any) => s.quarter === m.quarter);
+      const income    = confirmed.filter((t: any) => t.type === 'INCOME') .reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
+      const expenses  = confirmed.filter((t: any) => t.type === 'EXPENSE').reduce((s: number, t: any) => s + Number(t.amount_gross), 0);
+      const net       = income - expenses;
+      const sub       = (subData || []).find((s: any) => s.quarter === m.quarter);
       const readiness = qTx.length === 0 ? 0 : Math.round((confirmed.length / qTx.length) * 100);
-      return { quarter: m.quarter, label: m.label, periodFrom: m.from, periodTo: m.to, deadline: m.deadline, daysLeft: daysUntil(m.deadline), transactionCount: qTx.length, confirmedCount: confirmed.length, income, expenses, net, submissionStatus: sub?.status ?? 'not_started', readiness, estimatedTax: Math.max(0, net * 0.2) };
+      // Per-quarter estimated tax (Income Tax + NI on that quarter's net — indicative only)
+      const { totalTax: qTax } = calcUKSelfEmployedTax(net);
+      return { quarter: m.quarter, label: m.label, periodFrom: m.from, periodTo: m.to, deadline: m.deadline, daysLeft: daysUntil(m.deadline), transactionCount: qTx.length, confirmedCount: confirmed.length, income, expenses, net, submissionStatus: sub?.status ?? 'not_started', readiness, estimatedTax: qTax };
     });
     setQuarters(built);
     let score = 0;
@@ -155,9 +154,9 @@ export default function VigilPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const nextAction = getNextAction(quarters, connected);
+  const nextAction     = getNextAction(quarters, connected);
   const penaltyExposure = penaltyPoints >= 4 ? 200 + (penaltyPoints - 4) * 200 : 0;
-  const scoreColor = complianceScore >= 80 ? '#01D98D' : complianceScore >= 50 ? '#F59E0B' : '#EF4444';
+  const scoreColor     = complianceScore >= 80 ? '#01D98D' : complianceScore >= 50 ? '#F59E0B' : '#EF4444';
 
   const navTab = (active: boolean): React.CSSProperties => ({
     padding: '5px 12px', fontSize: 11, fontWeight: 600, cursor: 'pointer', borderRadius: 6, border: 'none',
@@ -178,14 +177,11 @@ export default function VigilPage() {
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, overflow: 'hidden' }}>
 
-          {/* Top bar */}
           {!isMobile && (
             <div style={{ background: '#fff', borderBottom: '0.5px solid #E5E7EB', padding: '0 28px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-                <span style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E' }}>
-                  VIGIL <span style={{ color: '#01D98D' }}>|</span> Deadlines &amp; Penalties
-                </span>
-              </div>
+              <span style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: 15, color: '#0A2E1E' }}>
+                VIGIL <span style={{ color: '#01D98D' }}>|</span> Deadlines &amp; Penalties
+              </span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                 <select value={taxYear} onChange={e => setTaxYear(e.target.value)}
                   style={{ padding: '5px 10px', fontSize: 12, borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', fontFamily: "'DM Sans', sans-serif" }}>
@@ -403,19 +399,40 @@ export default function VigilPage() {
                   {(() => {
                     const y = parseInt(taxYear.split('-')[0]);
                     const totalNet = quarters.reduce((s, q) => s + q.net, 0);
-                    const totalTax = Math.max(0, (totalNet - 12570) * 0.2);
+
+                    // Full tax liability: Income Tax + Class 4 NI
+                    const { incomeTax, class4NI, totalTax } = calcUKSelfEmployedTax(totalNet);
                     const poa = totalTax > 1000;
+
                     const payments = [
                       { label: 'Balancing Payment', date: `${y + 1}-01-31`, amount: poa ? totalTax / 2 : totalTax, note: 'Final settlement for the tax year' },
-                      ...(poa ? [{ label: 'First Payment on Account', date: `${y + 1}-01-31`, amount: totalTax / 2, note: 'Advance payment towards next year' }, { label: 'Second Payment on Account', date: `${y + 1}-07-31`, amount: totalTax / 2, note: 'Second advance payment' }] : []),
+                      ...(poa ? [
+                        { label: 'First Payment on Account',  date: `${y + 1}-01-31`, amount: totalTax / 2, note: 'Advance payment towards next year' },
+                        { label: 'Second Payment on Account', date: `${y + 1}-07-31`, amount: totalTax / 2, note: 'Second advance payment' },
+                      ] : []),
                     ];
+
                     return (
                       <>
-                        <div style={{ background: '#F0FDF8', border: '1px solid #BBF7E4', borderRadius: 12, padding: '16px 20px', marginBottom: 20 }}>
-                          <div style={{ fontSize: 12, fontWeight: 700, color: '#065F46', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>Estimated annual tax liability</div>
-                          <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 28, color: '#0A2E1E' }}>{fmt(totalTax)}</div>
-                          <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>Based on {fmt(totalNet)} net profit after £12,570 personal allowance at 20%</div>
+                        <div style={{ background: '#F0FDF8', border: '1px solid #BBF7E4', borderRadius: 12, padding: '20px 24px', marginBottom: 20 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: '#065F46', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 12 }}>Estimated annual tax liability</div>
+                          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr', gap: 12, marginBottom: 8 }}>
+                            <div>
+                              <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 2 }}>Income Tax</div>
+                              <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 22, color: '#0A2E1E' }}>{fmt(incomeTax)}</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 2 }}>Class 4 NI</div>
+                              <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 22, color: '#0A2E1E' }}>{fmt(class4NI)}</div>
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 2 }}>Total liability</div>
+                              <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 28, color: '#0A2E1E' }}>{fmt(totalTax)}</div>
+                            </div>
+                          </div>
+                          <div style={{ fontSize: 11, color: '#6B7280' }}>Based on {fmt(totalNet)} net profit — Income Tax after £12,570 allowance + Class 4 NI at 6%/2%</div>
                         </div>
+
                         {payments.map((p, i) => {
                           const days = daysUntil(p.date);
                           const color = days < 0 ? '#EF4444' : days < 30 ? '#F59E0B' : '#01D98D';
@@ -433,8 +450,9 @@ export default function VigilPage() {
                             </div>
                           );
                         })}
+
                         <div style={{ background: '#F9FAFB', borderRadius: 12, padding: '16px 20px', fontSize: 12, color: '#9CA3AF', lineHeight: 1.6 }}>
-                          These figures are estimates for planning purposes only. Always consult HMRC or a qualified advisor for your final tax position.
+                          These figures are estimates for planning purposes only. Includes Income Tax and Class 4 National Insurance. Always consult HMRC or a qualified advisor for your final tax position.
                         </div>
                       </>
                     );
