@@ -245,7 +245,7 @@ export default function QuartusPage() {
                               { lbl: 'Income',    val: fmt(q.income),       col: '#01D98D', note: null },
                               { lbl: 'Expenses',  val: fmt(q.expenses),     col: '#EF4444', note: null },
                               { lbl: 'Net profit',val: fmt(q.net),          col: q.net >= 0 ? '#0A2E1E' : '#EF4444', note: null },
-                              { lbl: 'Tax aside', val: fmt(q.estimatedTax), col: '#374151', note: 'IT + Class 4 NI' },
+                              { lbl: 'Tax aside', val: fmt(q.estimatedTax), col: '#374151', note: '(IT + Class 4 NI)' },
                             ].map(({ lbl, val, col, note }) => (
                               <div key={lbl}>
                                 <div style={{ fontSize: 10, color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4 }}>{lbl}</div>
