@@ -35,8 +35,8 @@ export default function AdminLoginPage() {
 
   const inp: React.CSSProperties = {
     width: '100%', padding: '12px 16px', fontSize: 14, borderRadius: 10,
-    border: '1.5px solid #2A3A2A', outline: 'none', background: '#0F1F0F',
-    color: '#fff', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box',
+    border: '1.5px solid #E5E7EB', outline: 'none', background: '#fff',
+    color: '#0A2E1E', fontFamily: "'DM Sans', sans-serif", boxSizing: 'border-box',
   };
 
   return (
@@ -60,16 +60,16 @@ export default function AdminLoginPage() {
         </div>
 
         {/* Card */}
-        <div style={{ background: '#112B1A', border: '1px solid #1E3D28', borderRadius: 16, padding: '32px 28px' }}>
-          <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 18, color: '#fff', marginBottom: 4 }}>
+        <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 16, padding: '32px 28px' }}>
+          <div style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 800, fontSize: 18, color: '#0A2E1E', marginBottom: 4 }}>
             Admin Sign in
           </div>
-          <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', marginBottom: 24 }}>
+          <div style={{ fontSize: 12, color: '#9CA3AF', marginBottom: 24 }}>
             Restricted access. Authorised personnel only.
           </div>
 
           <div style={{ marginBottom: 14 }}>
-            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
               Admin Email
             </label>
             <input
@@ -84,7 +84,7 @@ export default function AdminLoginPage() {
           </div>
 
           <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
+            <label style={{ display: 'block', fontSize: 10, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>
               Password
             </label>
             <input
