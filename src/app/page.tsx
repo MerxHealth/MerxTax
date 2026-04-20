@@ -351,7 +351,7 @@ export default function LandingPage() {
           </div>
           <div style={{ borderTop: '1px solid #EBEBEB', paddingTop: 24, display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
             <span style={{ fontSize: 13, color: '#BDBDBD' }}>© 2026 Merx Digital Solutions Ltd · Registered in England & Wales</span>
-            <span style={{ fontSize: 13, color: '#BDBDBD' }}>HMRC Agent SA: 0952CH · Making Tax Digital certified</span>
+            <span style={{ fontSize: 13, color: '#BDBDBD' }}>HMRC Agent SA: XXXXXX · Making Tax Digital certified</span>
           </div>
         </div>
       </footer>
