@@ -334,7 +334,7 @@ export default function LandingPage() {
             </div>
             {[
               { title: 'Product', links: [['Dashboard', '/login'], ['Pricing', '#pricing'], ['Guide', '/guide'], ['LUMEN AI', '/login'], ['FACTURA Invoicing', '/login']] },
-              { title: 'Company', links: [['About', '#'], ['Privacy Policy', '#'], ['Terms of Service', '#'], ['Contact', '#'], ['Careers', '#']] },
+              { title: 'Company', links: [['About', '#'], ['Privacy Policy', '/privacy-policy'], ['Terms of Service', '/terms-of-service'], ['Contact', '#'], ['Careers', '#']] },
               { title: 'Support', links: [['Help Centre', '#'], ['MTD Guide', '/guide'], ['API Status', '#'], ['Agent Portal', '/login'], ['Changelog', '#']] },
             ].map(col => (
               <div key={col.title}>
