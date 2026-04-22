@@ -1,446 +1,243 @@
-// src/app/admin/layout.tsx
-// MerxTax Admin Control Panel — Layout Shell
-// Sprint 7 · Slice 7A · Step 1
-// Wraps every /admin/* route with sidebar, header, and admin context guard.
+import { redirect } from 'next/navigation'
+import Link from 'next/link'
+import Image from 'next/image'
+import { createClient } from '@/lib/supabase/server'
 
-'use client';
+export default async function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  const supabase = await createClient()
 
-import { useEffect, useState } from 'react';
-import Image from 'next/image';
-import { createClient } from '@/lib/supabase/client';
-
-// ============ TYPES ============
-interface NavItem {
-  label: string;
-  href: string;
-  indent?: boolean;
-}
-
-interface NavSection {
-  heading: string;
-  items: NavItem[];
-}
-
-// ============ NAVIGATION CONFIG ============
-const NAV: NavSection[] = [
-  {
-    heading: 'OVERVIEW',
-    items: [
-      { label: 'Dashboard', href: '/admin' },
-    ],
-  },
-  {
-    heading: 'MAINTENANCE',
-    items: [
-      { label: 'Clients', href: '/admin/maintenance/clients' },
-      { label: 'Audit Log', href: '/admin/maintenance/audit-log' },
-    ],
-  },
-  {
-    heading: 'PAYMENTS',
-    items: [
-      { label: 'Overview', href: '/admin/payments' },
-      { label: 'Subscriptions', href: '/admin/payments/subscriptions' },
-      { label: 'Dunning', href: '/admin/payments/dunning' },
-    ],
-  },
-  {
-    heading: 'AGENT',
-    items: [
-      { label: 'Workspace', href: '/admin/agent' },
-      { label: 'Authorisation', href: '/admin/agent/authorisation' },
-      { label: 'Clients', href: '/admin/agent/clients' },
-      { label: 'Filings', href: '/admin/agent/filings' },
-    ],
-  },
-  {
-    heading: 'INTEGRATIONS',
-    items: [
-      { label: 'HMRC', href: '/admin/integrations/hmrc' },
-      { label: 'Stripe', href: '/admin/integrations/stripe' },
-      { label: 'Cloudflare R2', href: '/admin/integrations/r2' },
-      { label: 'Yapily', href: '/admin/integrations/yapily' },
-    ],
-  },
-  {
-    heading: 'SYSTEM',
-    items: [
-      { label: 'Settings', href: '/admin/settings' },
-      { label: 'Logs', href: '/admin/logs' },
-    ],
-  },
-];
-
-// ============ ADMIN GUARD HOOK ============
-function useAdminGuard() {
-  const [status, setStatus] = useState<'loading' | 'authorised' | 'denied'>('loading');
-  const [adminUserId, setAdminUserId] = useState<string | null>(null);
-  const [adminEmail, setAdminEmail] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function check() {
-      const supabase = createClient();
-      const { data: { user } } = await supabase.auth.getUser();
-
-      if (!user) {
-        if (!cancelled) {
-          window.location.href = '/login?redirect=/admin';
-        }
-        return;
-      }
-
-      const { data: adminRow, error } = await supabase
-        .from('admin_users')
-        .select('user_id, role')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (cancelled) return;
-
-      if (error || !adminRow) {
-        setStatus('denied');
-        setTimeout(() => { window.location.href = '/dashboard'; }, 1500);
-        return;
-      }
-
-      setAdminUserId(user.id);
-      setAdminEmail(user.email ?? null);
-      setStatus('authorised');
-    }
-
-    check();
-    return () => { cancelled = true; };
-  }, []);
-
-  return { status, adminUserId, adminEmail };
-}
-
-// ============ HMRC SESSION HOOK ============
-function useHmrcSession(adminUserId: string | null) {
-  const [session, setSession] = useState<{
-    environment: string;
-    connected: boolean;
-  } | null>(null);
-
-  useEffect(() => {
-    if (!adminUserId) return;
-
-    async function load() {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from('hmrc_connections')
-        .select('environment, revoked_at, expires_at')
-        .eq('user_id', adminUserId)
-        .is('revoked_at', null)
-        .order('connected_at', { ascending: false, nullsFirst: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (data) {
-        const expired = data.expires_at ? new Date(data.expires_at) < new Date() : false;
-        setSession({
-          environment: data.environment ?? 'sandbox',
-          connected: !expired,
-        });
-      } else {
-        setSession({ environment: '—', connected: false });
-      }
-    }
-
-    load();
-  }, [adminUserId]);
-
-  return session;
-}
-
-// ============ MAIN LAYOUT ============
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const { status, adminUserId, adminEmail } = useAdminGuard();
-  const hmrcSession = useHmrcSession(adminUserId);
-
-  if (status === 'loading') {
-    return (
-      <div style={loadingWrap}>
-        <div style={loadingText}>Verifying admin access…</div>
-      </div>
-    );
+  // 1. Session check — if no user, bounce to login
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    redirect('/login?redirect=/admin')
   }
 
-  if (status === 'denied') {
-    return (
-      <div style={loadingWrap}>
-        <div style={{ ...loadingText, color: '#991B1B' }}>
-          Access denied. Redirecting to dashboard…
-        </div>
-      </div>
-    );
+  // 2. Admin check — if not in admin_users, bounce to dashboard
+  const { data: adminRow, error: adminError } = await supabase
+    .from('admin_users')
+    .select('user_id, role')
+    .eq('user_id', user.id)
+    .maybeSingle()
+
+  if (adminError || !adminRow) {
+    redirect('/dashboard?error=admin_access_denied')
   }
 
-  const adminIdShort = adminUserId ? adminUserId.slice(0, 8) : '';
+  // 3. Fetch active HMRC session (for header pill)
+  const { data: hmrcSession } = await supabase
+    .from('hmrc_connections')
+    .select('environment, agent_code, connected_at, revoked_at')
+    .eq('user_id', user.id)
+    .is('revoked_at', null)
+    .order('connected_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  const adminIdPrefix = adminRow.user_id.slice(0, 8)
+  const hmrcConnected = !!hmrcSession
+  const hmrcEnvironment = hmrcSession?.environment as 'sandbox' | 'production' | undefined
+
+  // HMRC pill styling
+  const hmrcPillBg = hmrcConnected ? '#D1FAE5' : '#FEE2E2'
+  const hmrcPillColor = hmrcConnected ? '#065F46' : '#991B1B'
+  const hmrcPillDot = hmrcConnected ? '#01D98D' : '#EF4444'
+  const hmrcPillText = hmrcConnected
+    ? `HMRC · ${hmrcEnvironment?.toUpperCase()} · Connected`
+    : 'HMRC · Disconnected'
 
   return (
-    <div style={shell}>
-      <aside style={sidebar}>
-        <div style={sidebarLogoWrap}>
-          <Image
-            src="/logo.png"
-            alt="MerxTax"
-            width={160}
-            height={160}
-            priority
-            style={{ height: 160, width: 'auto', objectFit: 'contain' }}
-          />
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#F9FAFB' }}>
+      {/* ===== SIDEBAR ===== */}
+      <aside style={{
+        width: 280,
+        background: '#FFFFFF',
+        borderRight: '1px solid #E5E7EB',
+        position: 'fixed',
+        left: 0,
+        top: 0,
+        bottom: 0,
+        overflowY: 'auto',
+        zIndex: 10,
+      }}>
+        {/* Logo + Admin badge */}
+        <div style={{ padding: '24px 24px 16px', borderBottom: '1px solid #E5E7EB' }}>
+          <Link href="/admin" style={{ display: 'block' }}>
+            <Image
+              src="/logo.png"
+              alt="MerxTax"
+              width={160}
+              height={160}
+              style={{ height: 'auto', width: 160 }}
+              priority
+            />
+          </Link>
+          <div style={{
+            marginTop: 12,
+            padding: '6px 12px',
+            background: '#FEE2E2',
+            color: '#991B1B',
+            fontSize: 11,
+            fontWeight: 700,
+            fontFamily: 'Montserrat, sans-serif',
+            letterSpacing: 0.5,
+            textAlign: 'center',
+            borderRadius: 4,
+          }}>
+            ADMIN CONTROL PANEL
+          </div>
         </div>
 
-        <div style={sidebarBadge}>
-          ADMIN CONTROL PANEL
-        </div>
+        {/* Nav sections */}
+        <nav style={{ padding: '16px 0' }}>
+          <NavSection title="OVERVIEW">
+            <NavLink href="/admin" label="Dashboard" />
+          </NavSection>
 
-        <nav style={nav}>
-          {NAV.map((section) => (
-            <div key={section.heading} style={navSection}>
-              <div style={navHeading}>{section.heading}</div>
-              {section.items.map((item) => (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  style={navLink}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    window.location.href = item.href;
-                  }}
-                  onMouseOver={(e) => {
-                    (e.currentTarget as HTMLAnchorElement).style.background = '#F3F4F6';
-                    (e.currentTarget as HTMLAnchorElement).style.color = '#0A2E1E';
-                  }}
-                  onMouseOut={(e) => {
-                    (e.currentTarget as HTMLAnchorElement).style.background = 'transparent';
-                    (e.currentTarget as HTMLAnchorElement).style.color = '#1C1C1E';
-                  }}
-                >
-                  {item.label}
-                </a>
-              ))}
-            </div>
-          ))}
+          <NavSection title="MAINTENANCE">
+            <NavLink href="/admin/maintenance/clients" label="Clients" />
+            <NavLink href="/admin/maintenance/audit-log" label="Audit Log" />
+          </NavSection>
+
+          <NavSection title="PAYMENTS">
+            <NavLink href="/admin/payments" label="Subscriptions" />
+            <NavLink href="/admin/payments/dunning" label="Dunning" />
+          </NavSection>
+
+          <NavSection title="AGENT">
+            <NavLink href="/admin/agent/authorisation" label="Authorisations" />
+          </NavSection>
+
+          <NavSection title="INTEGRATIONS">
+            <NavLink href="/admin/integrations/hmrc" label="HMRC" />
+            <NavLink href="/admin/integrations/stripe" label="Stripe" />
+          </NavSection>
+
+          <NavSection title="SYSTEM">
+            <NavLink href="/admin/system/health" label="Health" />
+            <NavLink href="/admin/system/settings" label="Settings" />
+          </NavSection>
         </nav>
 
-        <div style={sidebarFooter}>
-          <a
-            href="/dashboard"
-            style={exitLink}
-            onClick={(e) => {
-              e.preventDefault();
-              window.location.href = '/dashboard';
-            }}
-          >
-            ← Exit Admin
-          </a>
+        {/* Back to app */}
+        <div style={{ padding: '16px 24px', borderTop: '1px solid #E5E7EB' }}>
+          <Link href="/dashboard" style={{
+            fontSize: 13,
+            color: '#6B7280',
+            fontFamily: 'DM Sans, sans-serif',
+            textDecoration: 'none',
+          }}>
+            ← Back to app
+          </Link>
         </div>
       </aside>
 
-      <div style={mainColumn}>
-        <header style={topbar}>
-          <div style={topbarLeft}>
-            <span style={adminPill}>
-              ADMIN · {adminIdShort}
-            </span>
-            {adminEmail && (
-              <span style={adminEmailText}>{adminEmail}</span>
-            )}
+      {/* ===== MAIN CONTENT ===== */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', marginLeft: 280 }}>
+        {/* Top header */}
+        <header style={{
+          background: '#FFFFFF',
+          borderBottom: '1px solid #E5E7EB',
+          padding: '16px 40px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          minHeight: 72,
+        }}>
+          {/* Left: ADMIN pill */}
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '6px 14px',
+            background: '#FEE2E2',
+            color: '#991B1B',
+            fontSize: 12,
+            fontWeight: 700,
+            fontFamily: 'Montserrat, sans-serif',
+            borderRadius: 999,
+            letterSpacing: 0.3,
+          }}>
+            ADMIN · {adminIdPrefix}
           </div>
 
-          <div style={topbarRight}>
-            {hmrcSession && (
-              <span
-                style={{
-                  ...hmrcPill,
-                  background: hmrcSession.connected ? '#D1FAE5' : '#F3F4F6',
-                  color: hmrcSession.connected ? '#065F46' : '#6B7280',
-                  border: hmrcSession.connected
-                    ? '1px solid #10B981'
-                    : '1px solid #D1D5DB',
-                }}
-              >
-                <span
-                  style={{
-                    display: 'inline-block',
-                    width: 8,
-                    height: 8,
-                    borderRadius: 4,
-                    background: hmrcSession.connected ? '#10B981' : '#9CA3AF',
-                  }}
-                />
-                HMRC · {hmrcSession.environment.toUpperCase()}
-                {hmrcSession.connected ? ' · Connected' : ' · Disconnected'}
-              </span>
-            )}
-          </div>
+          {/* Right: HMRC pill */}
+          <Link href="/admin/integrations/hmrc" style={{ textDecoration: 'none' }}>
+            <div style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '6px 14px',
+              background: hmrcPillBg,
+              color: hmrcPillColor,
+              fontSize: 12,
+              fontWeight: 600,
+              fontFamily: 'DM Sans, sans-serif',
+              borderRadius: 999,
+            }}>
+              <span style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: hmrcPillDot,
+                display: 'inline-block',
+              }} />
+              {hmrcPillText}
+            </div>
+          </Link>
         </header>
 
-        <main style={content}>
+        {/* Main */}
+        <main style={{ flex: 1, padding: '32px 40px', maxWidth: 1400, width: '100%' }}>
           {children}
         </main>
       </div>
     </div>
-  );
+  )
 }
 
-// ============ STYLES ============
-const loadingWrap: React.CSSProperties = {
-  minHeight: '100vh',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  background: '#F9FAFB',
-};
+// ===== Helper components (server components, inline) =====
 
-const loadingText: React.CSSProperties = {
-  fontFamily: 'DM Sans, sans-serif',
-  fontSize: 16,
-  color: '#6B7280',
-};
+function NavSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ marginBottom: 20 }}>
+      <div style={{
+        padding: '0 24px 8px',
+        fontSize: 11,
+        fontWeight: 700,
+        color: '#6B7280',
+        fontFamily: 'Montserrat, sans-serif',
+        letterSpacing: 0.8,
+      }}>
+        {title}
+      </div>
+      <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+        {children}
+      </ul>
+    </div>
+  )
+}
 
-const shell: React.CSSProperties = {
-  display: 'flex',
-  minHeight: '100vh',
-  background: '#FFFFFF',
-  fontFamily: 'DM Sans, sans-serif',
-};
-
-const sidebar: React.CSSProperties = {
-  width: 260,
-  minWidth: 260,
-  background: '#FFFFFF',
-  borderRight: '1px solid #E5E7EB',
-  display: 'flex',
-  flexDirection: 'column',
-  padding: '24px 0',
-};
-
-const sidebarLogoWrap: React.CSSProperties = {
-  padding: '0 24px 16px 24px',
-  display: 'flex',
-  justifyContent: 'flex-start',
-  alignItems: 'center',
-};
-
-const sidebarBadge: React.CSSProperties = {
-  margin: '0 24px 24px 24px',
-  padding: '6px 10px',
-  background: '#FEE2E2',
-  color: '#991B1B',
-  fontFamily: 'Montserrat, sans-serif',
-  fontWeight: 700,
-  fontSize: 11,
-  letterSpacing: '0.05em',
-  borderRadius: 6,
-  textAlign: 'center',
-};
-
-const nav: React.CSSProperties = {
-  flex: 1,
-  overflowY: 'auto',
-  padding: '0 16px',
-};
-
-const navSection: React.CSSProperties = {
-  marginBottom: 20,
-};
-
-const navHeading: React.CSSProperties = {
-  fontFamily: 'Montserrat, sans-serif',
-  fontSize: 11,
-  fontWeight: 700,
-  letterSpacing: '0.08em',
-  color: '#6B7280',
-  padding: '0 12px 8px 12px',
-};
-
-const navLink: React.CSSProperties = {
-  display: 'block',
-  padding: '8px 12px',
-  fontSize: 14,
-  color: '#1C1C1E',
-  textDecoration: 'none',
-  borderRadius: 6,
-  transition: 'background 0.15s, color 0.15s',
-  cursor: 'pointer',
-};
-
-const sidebarFooter: React.CSSProperties = {
-  padding: '16px 24px 0 24px',
-  borderTop: '1px solid #E5E7EB',
-  marginTop: 16,
-};
-
-const exitLink: React.CSSProperties = {
-  fontSize: 13,
-  color: '#6B7280',
-  textDecoration: 'none',
-  fontWeight: 500,
-};
-
-const mainColumn: React.CSSProperties = {
-  flex: 1,
-  display: 'flex',
-  flexDirection: 'column',
-  background: '#F9FAFB',
-};
-
-const topbar: React.CSSProperties = {
-  height: 64,
-  background: '#FFFFFF',
-  borderBottom: '1px solid #E5E7EB',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  padding: '0 32px',
-};
-
-const topbarLeft: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 16,
-};
-
-const topbarRight: React.CSSProperties = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: 12,
-};
-
-const adminPill: React.CSSProperties = {
-  background: '#D92D20',
-  color: '#FFFFFF',
-  padding: '6px 12px',
-  borderRadius: 6,
-  fontSize: 12,
-  fontWeight: 700,
-  fontFamily: 'Montserrat, sans-serif',
-  letterSpacing: '0.05em',
-};
-
-const adminEmailText: React.CSSProperties = {
-  fontSize: 13,
-  color: '#6B7280',
-};
-
-const hmrcPill: React.CSSProperties = {
-  padding: '6px 12px',
-  borderRadius: 6,
-  fontSize: 12,
-  fontWeight: 600,
-  fontFamily: 'DM Sans, sans-serif',
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: 8,
-};
-
-const content: React.CSSProperties = {
-  flex: 1,
-  padding: '32px',
-  overflowY: 'auto',
-};
+function NavLink({ href, label }: { href: string; label: string }) {
+  return (
+    <li>
+      <Link
+        href={href}
+        style={{
+          display: 'block',
+          padding: '8px 24px',
+          fontSize: 14,
+          color: '#1C1C1E',
+          fontFamily: 'DM Sans, sans-serif',
+          textDecoration: 'none',
+          transition: 'background 0.15s',
+        }}
+      >
+        {label}
+      </Link>
+    </li>
+  )
+}
